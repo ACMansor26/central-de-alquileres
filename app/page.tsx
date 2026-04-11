@@ -11,67 +11,59 @@ export default function Home() {
   const [propiedades, setPropiedades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Lógica de Datos: "Filtro de Hierro" y Cascada
+  // Lógica de Datos: "El Muestrario Ideal" (Top 2 por categoría)
   useEffect(() => {
     const loadInitialData = async () => {
-      const getCandidatas = async (t: string, f: string) => {
-        const result = await supabase
-          .from('mv_propiedades_listas')
-          .select(`
-            id_propiedad, direccion, zona, precio_alquiler, 
-            moneda_alquiler, expensas_num, tipo, metros_totales, 
-            tiene_cochera, tiene_pileta, tiene_seguridad, 
-            url_publicacion, politica_mascotas, imagen_url
-          `)
-          .eq('tipo', t)
-          .ilike('fuente', f)
-          .not('metros_totales', 'is', null)
-          .gt('metros_totales', 0)
-          .order('id_propiedad', { ascending: false })
-          .limit(15);
-
-        return result;
+      
+      // Función ultra-rápida: La base de datos hace el filtrado y el ranking
+      const getMejoresPorTipo = async (tipo: string) => {
+        const { data, error } = await supabase
+          .from('vista_propiedades_front')
+          .select('*')
+          .ilike('Tipo', tipo) // Usamos ilike por si en la base dice 'Ph' o 'PH'
+          .not('Metros', 'is', null)
+          .gt('Metros', 0)
+          // Ordenamos por el Score de mayor a menor (los nulls al final)
+          .order('amenity_score', { ascending: false, nullsFirst: false })
+          // En caso de empate de puntos, traemos la más nueva
+          .order('id_publicacion', { ascending: false }) 
+          .limit(2); // Solo 2 propiedades por categoría
+          
+        if (error) console.error(`Error cargando ${tipo}:`, error);
+        return data || [];
       };
 
-      const consultas = await Promise.all([
-        getCandidatas('Departamento', '%zonaprop%'),
-        getCandidatas('Departamento', '%argenprop%'),
-        getCandidatas('Casa', '%zonaprop%'),
-        getCandidatas('Casa', '%argenprop%'),
-        getCandidatas('Ph', '%zonaprop%'),
-        getCandidatas('Ph', '%argenprop%')
+      // Disparamos las 3 consultas al mismo tiempo para que cargue rapidísimo
+      const [deptos, casas, phs] = await Promise.all([
+        getMejoresPorTipo('Departamento'),
+        getMejoresPorTipo('Casa'),
+        getMejoresPorTipo('Ph') // Asegurate de que esto coincida con cómo está escrito en tu base de datos (Ph o PH)
       ]);
 
-      const destacadas = consultas.map(resultado => {
-        const candidatas = resultado.data || [];
-        
-        if (candidatas.length === 0) return null;
-        
-        let ganadora = candidatas.find(p => 
-          p.tiene_cochera === true || 
-          p.tiene_pileta === true || 
-          p.tiene_seguridad === true ||
-          p.politica_mascotas === "Acepta"
-        );
+      // Juntamos el top 2 de cada categoría (Total: 6 propiedades exactas)
+      const destacadasRaw = [...deptos, ...casas, ...phs];
 
-        // Si hay ganadora la usamos, sino usamos la primera de la lista
-        return ganadora || candidatas[0]; 
-      }).filter(Boolean);
-
-      if (destacadas.length > 0) {
-        setPropiedades(destacadas.map((p: any) => ({
-          id: p.id_propiedad.toString(),
-          direccion: p.direccion,
+      if (destacadasRaw.length > 0) {
+        setPropiedades(destacadasRaw.map((p: any) => ({
+          id: p.id_publicacion?.toString(),
+          direccion: p.Direccion,
           zona: p.zona,
           precio: p.precio_alquiler,
           moneda: p.moneda_alquiler,
           expensas: p.expensas_num,
-          tipo: p.tipo,
-          metros: Number(p.metros_totales) || 0,
+          tipo: p.Tipo,
+          metros: Number(p.Metros) || 0,
+          ambientes: p.ambientes,
+          orientacion: p.orientacion,
+          amenityScore: p.amenity_score,
+          antiguedad_anios: p.antiguedad_anios,
+          // Mapeo de todas las comodidades para encender los íconos:
           tieneCochera: p.tiene_cochera,
           tienePileta: p.tiene_pileta,
           tieneSeguridad: p.tiene_seguridad,
-          url: p.url_publicacion,
+          tienePatio: p.tiene_patio,
+          tieneBalcon: p.tiene_balcon,
+          url: p.URL,
           politicaMascotas: p.politica_mascotas,
           imagen_url: p.imagen_url
         })));
@@ -123,7 +115,7 @@ export default function Home() {
           <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-4">
             <div>
               <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">Propiedades destacadas</h2>
-              <p className="text-slate-500 mt-2 font-medium text-lg">A lo largo y ancho de todo AMBA.</p>
+              <p className="text-slate-500 mt-2 font-medium text-lg">La mejor relación calidad-comodidades del mercado.</p>
             </div>
             <Link href="/buscar" className="inline-flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-2xl hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm active:scale-95">
               Ver todo el listado →
@@ -134,7 +126,7 @@ export default function Home() {
             {loading ? (
               <div className="col-span-3 flex flex-col items-center justify-center py-32 bg-white rounded-[3rem] border border-dashed border-slate-200">
                 <Loader2 className="animate-spin text-indigo-600 mb-4" size={48} />
-                <span className="text-slate-400 font-bold uppercase text-sm tracking-widest">Recolectando datos...</span>
+                <span className="text-slate-400 font-bold uppercase text-sm tracking-widest">Calculando ranking de propiedades...</span>
               </div>
             ) : (
               propiedades.map(p => <PropertyCard key={p.id} data={p} />)

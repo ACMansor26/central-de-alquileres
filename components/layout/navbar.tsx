@@ -8,19 +8,24 @@ import { Home, Search, BarChart3, Menu, X, Building2 } from "lucide-react";
 export default function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
+  
   const pathname = usePathname();
-
   const isDarkPage = pathname !== "/";
 
   useEffect(() => {
+    setMounted(true);
+
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
     };
     window.addEventListener("scroll", handleScroll);
+    
+    handleScroll(); 
+    
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Bloquea el scroll de la página cuando el menú móvil está abierto
   useEffect(() => {
     if (isMobileMenuOpen) {
       document.body.style.overflow = "hidden";
@@ -36,9 +41,15 @@ export default function Navbar() {
     { name: "Análisis", href: "/analisis", icon: <BarChart3 size={20} /> },
   ];
 
-  const navbarBg = (isScrolled || isDarkPage) 
+  const isSolidBackground = mounted ? (isScrolled || isDarkPage) : isDarkPage;
+
+  const navbarBg = isSolidBackground
     ? "bg-zinc-950/90 backdrop-blur-md border-b border-white/10 py-3" 
     : "bg-transparent py-4";
+
+  if (!mounted) {
+    return <nav className={`fixed top-0 left-0 right-0 z-[999] px-4 sm:px-8 w-full ${isDarkPage ? "bg-zinc-950/90 border-b border-white/10 py-3" : "bg-transparent py-4"}`} />;
+  }
 
   return (
     <nav className={`fixed top-0 left-0 right-0 z-[999] transition-all duration-300 px-4 sm:px-8 max-w-[100vw] ${navbarBg}`}>
@@ -57,7 +68,7 @@ export default function Navbar() {
           </span>
         </Link>
 
-        {/* MENÚ DE ESCRITORIO (Se oculta con md:flex) */}
+        {/* MENÚ DE ESCRITORIO */}
         <div className="hidden md:flex items-center gap-1 bg-white/5 p-1 rounded-2xl border border-white/10 backdrop-blur-sm">
           {navLinks.map((link) => {
             const isActive = pathname === link.href;
@@ -98,8 +109,7 @@ export default function Navbar() {
         </button>
       </div>
 
-      {/* 👇 CAMBIO CLAVE 2: MENÚ MÓVIL FULLSCREEN 👇 */}
-      {/* Al usar fixed inset-0, garantizamos que ocupe 100% de la pantalla del celular */}
+      {/* MENÚ MÓVIL FULLSCREEN */}
       {isMobileMenuOpen && (
         <div className="fixed inset-0 top-0 left-0 w-full h-[100dvh] bg-zinc-950 z-[998] flex flex-col md:hidden animate-in fade-in zoom-in-95 duration-200 pt-24 px-6 pb-6">
           

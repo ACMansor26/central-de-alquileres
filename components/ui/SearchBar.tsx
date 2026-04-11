@@ -72,19 +72,20 @@ export default function SearchBar({
   };
 
   return (
-  <form onSubmit={handleSearch} className="bg-white p-3 md:p-2 rounded-2xl md:rounded-full shadow-xl flex flex-col md:flex-row md:gap-2 w-full border border-slate-200 relative z-30">
+  // 👇 1. EL CAMBIO CLAVE AL PADRE: Pasó de z-30 a z-[9999]
+  <form onSubmit={handleSearch} className="bg-white p-3 md:p-2 rounded-2xl md:rounded-[2rem] shadow-xl flex flex-col md:flex-row md:gap-2 w-full border border-slate-200 relative z-[9999]">
     
     {/* 1. Selector de Tipo */}
     <div className="relative md:min-w-[160px] border-b md:border-b-0 md:border-r border-slate-100 flex items-center">
       <select 
         value={tipo} onChange={(e) => setTipo(e.target.value)}
-        className="w-full h-full px-4 py-3 md:py-3 bg-transparent text-slate-800 font-bold appearance-none focus:outline-none cursor-pointer text-sm"
+        className="w-full h-full px-4 py-3 md:py-3 bg-transparent text-slate-800 font-bold appearance-none focus:outline-none cursor-pointer text-sm relative z-10"
       >
         <option value="Departamento">Departamento</option>
         <option value="Casa">Casa</option>
         <option value="Ph">PH</option>
       </select>
-      <ChevronDown className="absolute right-4 md:right-3 text-slate-400 pointer-events-none" size={14} />
+      <ChevronDown className="absolute right-4 md:right-3 text-slate-400 pointer-events-none z-0" size={14} />
     </div>
 
     {/* 2. Selector de Moneda */}
@@ -106,14 +107,15 @@ export default function SearchBar({
       </button>
 
       {showPrecios && (
-        <div className="absolute top-[calc(100%+10px)] left-0 md:left-0 right-0 md:right-auto mx-4 md:mx-0 bg-white p-6 rounded-2xl shadow-2xl border border-slate-200 z-[100] md:w-72 text-left animate-in fade-in slide-in-from-top-2">
+        // 👇 2. CAMBIO EN DROPDOWN PRECIO: z-[99999] y corrección de márgenes móviles para que no se escape
+        <div className="absolute top-[calc(100%+12px)] left-0 md:left-0 right-0 md:right-auto bg-white p-6 rounded-2xl shadow-2xl border border-slate-200 z-[99999] md:w-72 text-left animate-in fade-in slide-in-from-top-2">
           <h4 className="text-[10px] font-black text-slate-500 uppercase mb-4 tracking-widest">Rango en {moneda}</h4>
           <div className="flex items-center gap-2">
             <input type="number" placeholder="Min" value={minPrecio} onChange={(e) => setMinPrecio(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none" />
             <span className="text-slate-400 font-bold">-</span>
             <input type="number" placeholder="Max" value={maxPrecio} onChange={(e) => setMaxPrecio(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none" />
           </div>
-          <button type="button" onClick={() => setShowPrecios(false)} className="w-full mt-5 bg-blue-600 text-white py-3 rounded-xl text-xs font-black shadow-md">APLICAR</button>
+          <button type="button" onClick={() => setShowPrecios(false)} className="w-full mt-5 bg-blue-600 text-white py-3 rounded-xl text-xs font-black shadow-md hover:bg-blue-700 transition-colors">APLICAR</button>
         </div>
       )}
     </div>
@@ -136,16 +138,17 @@ export default function SearchBar({
       </div>
 
       {sugerencias.length > 0 && (
-        <div className="absolute left-0 top-full mt-2 w-full bg-white rounded-2xl shadow-2xl border border-slate-100 z-50 overflow-y-auto max-h-60">
+        // 👇 3. CAMBIO EN SUGERENCIAS: z-[99999] y overflow protegido
+        <div className="absolute left-0 top-[calc(100%+12px)] w-full bg-white rounded-2xl shadow-2xl border border-slate-200 z-[99999] overflow-y-auto max-h-60 custom-scrollbar">
           {sugerencias.map((s, index) => (
-            <button key={`${s}-${index}`} type="button" onClick={() => agregarZona(s)} className="w-full px-6 py-4 hover:bg-blue-50 text-slate-700 font-bold text-sm text-left border-b border-slate-50 last:border-b-0">{s}</button>
+            <button key={`${s}-${index}`} type="button" onClick={() => agregarZona(s)} className="w-full px-6 py-4 hover:bg-blue-50 text-slate-700 font-bold text-sm text-left border-b border-slate-50 last:border-b-0 transition-colors">{s}</button>
           ))}
         </div>
       )}
     </div>
 
-    {/* Botón de búsqueda (Ocupa todo el ancho en móvil, se encoge en PC) */}
-    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-4 md:py-0 w-full md:w-auto rounded-xl md:rounded-full transition-all shadow-lg shadow-blue-500/20 active:scale-95 text-sm mt-2 md:mt-0">
+    {/* Botón de búsqueda */}
+    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-4 md:py-0 w-full md:w-auto rounded-xl md:rounded-[1.5rem] transition-all shadow-lg shadow-blue-500/20 active:scale-95 text-sm mt-2 md:mt-0 z-10">
       Buscar
     </button>
   </form>
