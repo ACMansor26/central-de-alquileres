@@ -72,14 +72,14 @@ export default function SearchBar({
   };
 
   return (
-  // 👇 1. EL CAMBIO CLAVE AL PADRE: Pasó de z-30 a z-[9999]
-  <form onSubmit={handleSearch} className="bg-white p-3 md:p-2 rounded-2xl md:rounded-[2rem] shadow-xl flex flex-col md:flex-row md:gap-2 w-full border border-slate-200 relative z-[9999]">
+  /* 👇 CAMBIO: p-0 para que el botón pueda tocar el borde */
+  <form onSubmit={handleSearch} className="bg-white p-0 rounded-2xl md:rounded-[2rem] shadow-xl flex flex-col md:flex-row w-full border border-slate-200 relative z-[9999]">
     
-    {/* 1. Selector de Tipo */}
-    <div className="relative md:min-w-[160px] border-b md:border-b-0 md:border-r border-slate-100 flex items-center">
+    {/* 1. Selector de Tipo - Agregado pl-4 para compensar el p-0 del padre */}
+    <div className="relative md:min-w-[160px] border-b md:border-b-0 md:border-r border-slate-100 flex items-center pl-4">
       <select 
         value={tipo} onChange={(e) => setTipo(e.target.value)}
-        className="w-full h-full px-4 py-3 md:py-3 bg-transparent text-slate-800 font-bold appearance-none focus:outline-none cursor-pointer text-sm relative z-10"
+        className="w-full h-full py-4 md:py-3 bg-transparent text-slate-800 font-bold appearance-none focus:outline-none cursor-pointer text-sm relative z-10"
       >
         <option value="Departamento">Departamento</option>
         <option value="Casa">Casa</option>
@@ -89,15 +89,27 @@ export default function SearchBar({
     </div>
 
     {/* 2. Selector de Moneda */}
-    <div className="relative border-b md:border-b-0 md:border-r border-slate-100 flex items-center px-4 md:px-2 py-3 md:py-0">
-      <div className="flex bg-slate-100 p-1 rounded-xl w-full md:w-auto justify-center">
-        <button type="button" onClick={() => setMoneda("Pesos")} className={`py-1.5 px-6 md:px-3 flex-1 md:flex-none rounded-lg text-[10px] md:text-xs font-black transition-all ${moneda === "Pesos" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400"}`}>ARS</button>
-        <button type="button" onClick={() => setMoneda("Dolares")} className={`py-1.5 px-6 md:px-3 flex-1 md:flex-none rounded-lg text-[10px] md:text-xs font-black transition-all ${moneda === "Dolares" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400"}`}>USD</button>
+    <div className="relative border-b md:border-b-0 md:border-r border-slate-100 flex items-center px-4 md:px-3 py-3 md:py-0">
+      <div className="flex bg-slate-100 p-1 rounded-xl w-full md:w-auto">
+        <button 
+          type="button" 
+          onClick={() => setMoneda("Pesos")} 
+          className={`flex-1 md:flex-none py-2 md:py-1.5 px-4 text-center rounded-lg text-[11px] md:text-xs font-black transition-all ${moneda === "Pesos" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400"}`}
+        >
+          ARS
+        </button>
+        <button 
+          type="button" 
+          onClick={() => setMoneda("Dolares")} 
+          className={`flex-1 md:flex-none py-2 md:py-1.5 px-4 text-center rounded-lg text-[11px] md:text-xs font-black transition-all ${moneda === "Dolares" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400"}`}
+        >
+          USD
+        </button>
       </div>
     </div>
 
     {/* 3. Filtro de Precio */}
-    <div className="relative border-b md:border-b-0 md:border-r border-slate-100 flex items-center px-4 py-3 md:py-0">
+    <div className="relative border-b md:border-b-0 md:border-r border-slate-100 flex items-center px-4 py-4 md:py-0">
       <button type="button" onClick={() => setShowPrecios(!showPrecios)} className="text-slate-700 font-bold flex justify-between md:justify-start items-center gap-2 w-full md:w-auto whitespace-nowrap text-sm">
         <span className="flex items-center gap-2">
           <DollarSign size={16} className="text-slate-400" />
@@ -107,8 +119,7 @@ export default function SearchBar({
       </button>
 
       {showPrecios && (
-        // 👇 2. CAMBIO EN DROPDOWN PRECIO: z-[99999] y corrección de márgenes móviles para que no se escape
-        <div className="absolute top-[calc(100%+12px)] left-0 md:left-0 right-0 md:right-auto bg-white p-6 rounded-2xl shadow-2xl border border-slate-200 z-[99999] md:w-72 text-left animate-in fade-in slide-in-from-top-2">
+        <div className="absolute top-[calc(100%+12px)] left-4 md:left-0 right-4 md:right-auto bg-white p-6 rounded-2xl shadow-2xl border border-slate-200 z-[99999] md:w-72 text-left animate-in fade-in slide-in-from-top-2">
           <h4 className="text-[10px] font-black text-slate-500 uppercase mb-4 tracking-widest">Rango en {moneda}</h4>
           <div className="flex items-center gap-2">
             <input type="number" placeholder="Min" value={minPrecio} onChange={(e) => setMinPrecio(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none" />
@@ -121,34 +132,40 @@ export default function SearchBar({
     </div>
 
     {/* 4. Zonas (Tags + Input) */}
-    <div className="flex-grow relative flex items-center gap-2 px-4 py-2 md:py-0 min-h-[60px] md:min-h-[50px]">
-      <div className="flex flex-wrap items-center gap-2 flex-grow py-2">
+    <div className="flex-grow min-w-0 relative flex items-center gap-2 px-4 h-[60px] md:h-[60px]">
+      <div className="flex flex-nowrap items-center gap-2 flex-grow overflow-x-auto no-scrollbar py-1">
         {zonasSeleccionadas.map(z => (
-          <div key={z} className="flex items-center gap-1 bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-[11px] font-bold border border-slate-200 h-7">
+          <div key={z} className="flex items-center gap-1 bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-[11px] font-bold border border-slate-200 h-7 flex-shrink-0">
             <span>{z}</span>
-            <button type="button" onClick={() => eliminarZona(z)} className="text-slate-400 hover:text-slate-700"><X size={14} /></button>
+            <button type="button" onClick={() => eliminarZona(z)} className="text-slate-400 hover:text-slate-700">
+              <X size={14} />
+            </button>
           </div>
         ))}
         <input 
           value={inputValue} 
           onChange={(e) => setInputValue(e.target.value)} 
           placeholder={zonasSeleccionadas.length === 0 ? "Ingresá localidades..." : ""} 
-          className="flex-grow py-2 text-slate-800 bg-transparent focus:outline-none min-w-[100px] font-medium text-sm h-8 placeholder:text-slate-400" 
+          className="flex-grow py-2 text-slate-800 bg-transparent focus:outline-none min-w-[120px] font-medium text-sm h-8 placeholder:text-slate-400 flex-shrink-0" 
         />
       </div>
 
       {sugerencias.length > 0 && (
-        // 👇 3. CAMBIO EN SUGERENCIAS: z-[99999] y overflow protegido
         <div className="absolute left-0 top-[calc(100%+12px)] w-full bg-white rounded-2xl shadow-2xl border border-slate-200 z-[99999] overflow-y-auto max-h-60 custom-scrollbar">
           {sugerencias.map((s, index) => (
-            <button key={`${s}-${index}`} type="button" onClick={() => agregarZona(s)} className="w-full px-6 py-4 hover:bg-blue-50 text-slate-700 font-bold text-sm text-left border-b border-slate-50 last:border-b-0 transition-colors">{s}</button>
+            <button key={`${s}-${index}`} type="button" onClick={() => agregarZona(s)} className="w-full px-6 py-4 hover:bg-blue-50 text-slate-700 font-bold text-sm text-left border-b border-slate-50 last:border-b-0 transition-colors">
+              {s}
+            </button>
           ))}
         </div>
       )}
     </div>
 
-    {/* Botón de búsqueda */}
-    <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-8 py-4 md:py-0 w-full md:w-auto rounded-xl md:rounded-[1.5rem] transition-all shadow-lg shadow-blue-500/20 active:scale-95 text-sm mt-2 md:mt-0 z-10">
+    {/*BOTÓN DE BÚSQUEDA*/}
+    <button 
+      type="submit" 
+      className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-10 h-[60px] md:h-auto w-full md:w-auto rounded-b-2xl md:rounded-bl-none md:rounded-r-[2rem] transition-all active:scale-95 text-sm flex-shrink-0"
+    >
       Buscar
     </button>
   </form>

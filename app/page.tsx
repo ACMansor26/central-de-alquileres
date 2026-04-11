@@ -11,36 +11,30 @@ export default function Home() {
   const [propiedades, setPropiedades] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Lógica de Datos: "El Muestrario Ideal" (Top 2 por categoría)
   useEffect(() => {
     const loadInitialData = async () => {
       
-      // Función ultra-rápida: La base de datos hace el filtrado y el ranking
       const getMejoresPorTipo = async (tipo: string) => {
         const { data, error } = await supabase
           .from('vista_propiedades_front')
           .select('*')
-          .ilike('Tipo', tipo) // Usamos ilike por si en la base dice 'Ph' o 'PH'
+          .ilike('Tipo', tipo)
           .not('Metros', 'is', null)
           .gt('Metros', 0)
-          // Ordenamos por el Score de mayor a menor (los nulls al final)
           .order('amenity_score', { ascending: false, nullsFirst: false })
-          // En caso de empate de puntos, traemos la más nueva
           .order('id_publicacion', { ascending: false }) 
-          .limit(2); // Solo 2 propiedades por categoría
+          .limit(2);
           
         if (error) console.error(`Error cargando ${tipo}:`, error);
         return data || [];
       };
 
-      // Disparamos las 3 consultas al mismo tiempo para que cargue rapidísimo
       const [deptos, casas, phs] = await Promise.all([
         getMejoresPorTipo('Departamento'),
         getMejoresPorTipo('Casa'),
-        getMejoresPorTipo('Ph') // Asegurate de que esto coincida con cómo está escrito en tu base de datos (Ph o PH)
+        getMejoresPorTipo('Ph') 
       ]);
 
-      // Juntamos el top 2 de cada categoría (Total: 6 propiedades exactas)
       const destacadasRaw = [...deptos, ...casas, ...phs];
 
       if (destacadasRaw.length > 0) {
@@ -57,7 +51,6 @@ export default function Home() {
           orientacion: p.orientacion,
           amenityScore: p.amenity_score,
           antiguedad_anios: p.antiguedad_anios,
-          // Mapeo de todas las comodidades para encender los íconos:
           tieneCochera: p.tiene_cochera,
           tienePileta: p.tiene_pileta,
           tieneSeguridad: p.tiene_seguridad,

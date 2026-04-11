@@ -69,6 +69,7 @@ export default async function BuscarPage({ searchParams }: SearchProps) {
     tipo: p.Tipo,
     metros: p.Metros,
     ambientes: p.ambientes,
+    antiguedad_anios: p.antiguedad_anios,
     tieneCochera: p.tiene_cochera,
     tienePileta: p.tiene_pileta,
     tieneSeguridad: p.tiene_seguridad,
