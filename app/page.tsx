@@ -70,12 +70,14 @@ export default function Home() {
   return (
     <main className="flex min-h-screen flex-col bg-slate-50">
       
-      {/* HERO SECTION - ESTILO STARTUP MODERNA */}
+      {/* HERO SECTION */}
       <section className="relative w-full min-h-[70vh] flex flex-col items-center justify-center bg-zinc-950 px-4 pt-20 pb-16">
         
-        {/* Decoración abstracta de fondo */}
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-indigo-500/20 blur-[120px] rounded-full pointer-events-none -z-0"></div>
-        <div className="absolute bottom-0 right-0 w-[400px] h-[300px] bg-rose-500/10 blur-[100px] rounded-full pointer-events-none -z-0"></div>
+        {/* Decoración abstracta de fondo - contenida en su propio wrapper */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-indigo-500/20 blur-[120px] rounded-full -z-0"></div>
+          <div className="absolute bottom-0 right-0 w-[400px] h-[300px] bg-rose-500/10 blur-[100px] rounded-full -z-0"></div>
+        </div>
 
         <div className="relative z-20 text-center w-full max-w-4xl mx-auto flex flex-col items-center mt-10">
           
