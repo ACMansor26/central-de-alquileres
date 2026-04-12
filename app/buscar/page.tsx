@@ -19,12 +19,15 @@ interface SearchProps {
     page?: string; 
     sort?: string; 
     moneda?: string; 
+    minM2?: string;
+    maxM2?: string;
+    ambientes?: string;
   }>;
 }
 
 export default async function BuscarPage({ searchParams }: SearchProps) {
   const sParams = await searchParams;
-  const { q, tipo, min, max, page, sort, moneda } = sParams;
+  const { q, tipo, min, max, page, sort, moneda, minM2, maxM2, ambientes } = sParams;
   
   const pageSize = 20;
   const currentPage = Math.max(1, parseInt(page || "1"));
@@ -40,6 +43,15 @@ export default async function BuscarPage({ searchParams }: SearchProps) {
   if (moneda) query = query.eq('moneda_alquiler', moneda);
   if (min) query = query.gte('precio_alquiler', parseInt(min));
   if (max) query = query.lte('precio_alquiler', parseInt(max));
+  if (minM2) query = query.gte('Metros', parseInt(minM2));
+  if (maxM2) query = query.lte('Metros', parseInt(maxM2));
+  if (ambientes) {
+    if (ambientes === "5+") {
+      query = query.gte('ambientes', 5);
+    } else {
+      query = query.lte('ambientes', parseInt(ambientes));
+    }
+  }
 
   if (listaZonas.length > 0) {
     const orString = listaZonas.map(z => `zona.ilike.%${z}%`).join(',');
@@ -80,20 +92,23 @@ export default async function BuscarPage({ searchParams }: SearchProps) {
   })) || [];
 
   const getUrlWithParams = (newParams: Record<string, string | number | undefined>) => {
-    const nextParams = new URLSearchParams();
-    if (q) nextParams.append("q", q);
-    if (tipo) nextParams.append("tipo", tipo);
-    if (moneda) nextParams.append("moneda", moneda);
-    if (min) nextParams.append("min", min);
-    if (max) nextParams.append("max", max);
-    if (sort && !newParams.sort) nextParams.append("sort", sort);
-    
-    Object.entries(newParams).forEach(([key, value]) => {
-      if (value) nextParams.set(key, value.toString());
-      else if (value === undefined) nextParams.delete(key);
-    });
-    return `/buscar?${nextParams.toString()}`;
-  };
+  const nextParams = new URLSearchParams();
+  if (q) nextParams.append("q", q);
+  if (tipo) nextParams.append("tipo", tipo);
+  if (moneda) nextParams.append("moneda", moneda);
+  if (min) nextParams.append("min", min);
+  if (max) nextParams.append("max", max);
+  if (minM2) nextParams.append("minM2", minM2);       // 👈 nuevo
+  if (maxM2) nextParams.append("maxM2", maxM2);       // 👈 nuevo
+  if (ambientes) nextParams.append("ambientes", ambientes); // 👈 nuevo
+  if (sort && !newParams.sort) nextParams.append("sort", sort);
+  
+  Object.entries(newParams).forEach(([key, value]) => {
+    if (value) nextParams.set(key, value.toString());
+    else if (value === undefined) nextParams.delete(key);
+  });
+  return `/buscar?${nextParams.toString()}`;
+};
 
   return (
     <main className="min-h-screen bg-slate-50 pt-28 px-4 sm:px-6 lg:px-8">
