@@ -1,27 +1,27 @@
-import { NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { NextResponse } from "next/server";
+import { supabase } from "@/lib/supabase";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const nombre = searchParams.get('nombre');
+  const nombre = searchParams.get("nombre")?.trim();
 
   if (!nombre || nombre.length < 2) {
     return NextResponse.json([]);
   }
 
   try {
-    // 👇 ESTE .ilike() ES EL QUE DISPARA EL ÍNDICE TRIGRAM EN POSTGRES 👇
     const { data, error } = await supabase
-      .from('ubicacion') // O 'mv_propiedades_listas' si querés sacar los barrios de ahí
-      .select('zona')
-      .ilike('zona', `%${nombre}%`) 
-      .limit(10); // Límite bajo porque es solo para sugerencias
+      .from("ubicacion")
+      .select("zona")
+      .ilike("zona", `%${nombre}%`)
+      .limit(20);
 
     if (error) throw error;
 
-    // Extraemos solo los nombres y sacamos duplicados
-    const zonasUnicas = Array.from(new Set(data.map(item => item.zona)));
-    
+    const zonasUnicas = Array.from(
+      new Set((data ?? []).map((item) => item.zona).filter(Boolean))
+    ).slice(0, 10);
+
     return NextResponse.json(zonasUnicas);
   } catch (error) {
     console.error("Error buscando barrios:", error);

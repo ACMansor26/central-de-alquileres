@@ -1,8 +1,15 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import {
+  startTransition,
+  useDeferredValue,
+  useEffect,
+  useEffectEvent,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
-import { ChevronDown, X, DollarSign, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, DollarSign, SlidersHorizontal, X } from "lucide-react";
 
 interface SearchBarProps {
   initialTipo?: string;
@@ -15,6 +22,8 @@ interface SearchBarProps {
   initialAmbientes?: string;
 }
 
+const ROOM_OPTIONS = ["1", "2", "3", "4", "5+"];
+
 export default function SearchBar({
   initialTipo = "Departamento",
   initialMoneda = "Pesos",
@@ -26,6 +35,7 @@ export default function SearchBar({
   initialAmbientes = "",
 }: SearchBarProps) {
   const router = useRouter();
+  const suggestionsCache = useRef(new Map<string, string[]>());
 
   const [tipo, setTipo] = useState(initialTipo);
   const [moneda, setMoneda] = useState(initialMoneda);
@@ -35,129 +45,218 @@ export default function SearchBar({
   const [minM2, setMinM2] = useState(initialMinM2);
   const [maxM2, setMaxM2] = useState(initialMaxM2);
   const [ambientes, setAmbientes] = useState(initialAmbientes);
-
   const [inputValue, setInputValue] = useState("");
   const [sugerencias, setSugerencias] = useState<string[]>([]);
   const [showFiltros, setShowFiltros] = useState(false);
 
-  const hayFiltrosActivos = minPrecio || maxPrecio || minM2 || maxM2 || ambientes;
+  const deferredInputValue = useDeferredValue(inputValue);
+  const activeFilters = Boolean(minPrecio || maxPrecio || minM2 || maxM2 || ambientes);
+
+  const fetchSuggestions = useEffectEvent(
+    async (query: string, selectedZones: string[], signal: AbortSignal) => {
+      const normalizedQuery = query.trim().toLowerCase();
+      const selectedZoneSet = new Set(selectedZones);
+
+      if (suggestionsCache.current.has(normalizedQuery)) {
+        setSugerencias(
+          (suggestionsCache.current.get(normalizedQuery) ?? []).filter(
+            (zone) => !selectedZoneSet.has(zone)
+          )
+        );
+        return;
+      }
+
+      const response = await fetch(`/api/barrios?nombre=${encodeURIComponent(query.trim())}`, {
+        signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`Error buscando barrios: ${response.status}`);
+      }
+
+      const data = (await response.json()) as string[];
+      suggestionsCache.current.set(normalizedQuery, data);
+
+      if (!signal.aborted) {
+        setSugerencias(data.filter((zone) => !selectedZoneSet.has(zone)));
+      }
+    }
+  );
 
   useEffect(() => {
-    const buscarSugerencias = async () => {
-      if (inputValue.length < 2) { setSugerencias([]); return; }
-      try {
-        const response = await fetch(`/api/barrios?nombre=${inputValue}`);
-        const data = await response.json();
-        setSugerencias(data.filter((s: string) => !zonasSeleccionadas.includes(s)));
-      } catch (error) { console.error(error); }
+    const query = deferredInputValue.trim();
+
+    if (query.length < 2) {
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(() => {
+      fetchSuggestions(query, zonasSeleccionadas, controller.signal).catch((error) => {
+        if (error instanceof Error && error.name === "AbortError") return;
+        console.error(error);
+      });
+    }, 250);
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timer);
     };
-    const timer = setTimeout(buscarSugerencias, 300);
-    return () => clearTimeout(timer);
-  }, [inputValue, zonasSeleccionadas]);
+  }, [deferredInputValue, zonasSeleccionadas]);
 
   const agregarZona = (zona: string) => {
-    if (!zonasSeleccionadas.includes(zona)) setZonasSeleccionadas([...zonasSeleccionadas, zona]);
+    setZonasSeleccionadas((currentZones) =>
+      currentZones.includes(zona) ? currentZones : [...currentZones, zona]
+    );
     setInputValue("");
     setSugerencias([]);
   };
 
   const eliminarZona = (zonaEliminar: string) => {
-    setZonasSeleccionadas(zonasSeleccionadas.filter(zona => zona !== zonaEliminar));
+    setZonasSeleccionadas((currentZones) =>
+      currentZones.filter((zona) => zona !== zonaEliminar)
+    );
   };
 
-  // 👇 handleSearch corregido — solo arma la URL
-  const handleSearch = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSearch = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
     const params = new URLSearchParams();
-    if (zonasSeleccionadas.length > 0) params.append("q", zonasSeleccionadas.join(","));
-    if (tipo) params.append("tipo", tipo);
-    if (moneda) params.append("moneda", moneda);
-    if (minPrecio) params.append("min", minPrecio);
-    if (maxPrecio) params.append("max", maxPrecio);
-    if (minM2) params.append("minM2", minM2);
-    if (maxM2) params.append("maxM2", maxM2);
-    if (ambientes) params.append("ambientes", ambientes);
-    router.push(`/buscar?${params.toString()}`);
-  };
 
-  const opcionesAmbientes = ["1", "2", "3", "4", "5+"];
+    if (zonasSeleccionadas.length > 0) params.set("q", zonasSeleccionadas.join(","));
+    if (tipo) params.set("tipo", tipo);
+    if (moneda) params.set("moneda", moneda);
+    if (minPrecio) params.set("min", minPrecio);
+    if (maxPrecio) params.set("max", maxPrecio);
+    if (minM2) params.set("minM2", minM2);
+    if (maxM2) params.set("maxM2", maxM2);
+    if (ambientes) params.set("ambientes", ambientes);
+
+    startTransition(() => {
+      router.push(`/buscar?${params.toString()}`);
+    });
+  };
 
   return (
-    <form onSubmit={handleSearch} className="bg-white p-0 rounded-2xl md:rounded-[2rem] shadow-xl flex flex-col md:flex-row w-full border border-slate-200 relative z-[9999]">
-
-      {/* 1. Selector de Tipo */}
-      <div className="relative md:min-w-[160px] border-b md:border-b-0 md:border-r border-slate-100 flex items-center pl-4">
+    <form
+      onSubmit={handleSearch}
+      className="relative z-[9999] flex w-full flex-col rounded-2xl border border-slate-200 bg-white p-0 shadow-xl md:flex-row md:rounded-[2rem]"
+    >
+      <div className="relative flex items-center border-b border-slate-100 pl-4 md:min-w-[160px] md:border-b-0 md:border-r">
         <select
-          value={tipo} onChange={(e) => setTipo(e.target.value)}
-          className="w-full h-full py-4 md:py-3 bg-transparent text-slate-800 font-bold appearance-none focus:outline-none cursor-pointer text-sm relative z-10"
+          value={tipo}
+          onChange={(event) => setTipo(event.target.value)}
+          className="relative z-10 h-full w-full cursor-pointer appearance-none bg-transparent py-4 text-sm font-bold text-slate-800 focus:outline-none md:py-3"
         >
           <option value="Departamento">Departamento</option>
           <option value="Casa">Casa</option>
           <option value="Ph">PH</option>
         </select>
-        <ChevronDown className="absolute right-4 md:right-3 text-slate-400 pointer-events-none z-0" size={14} />
+        <ChevronDown className="pointer-events-none absolute right-4 z-0 text-slate-400 md:right-3" size={14} />
       </div>
 
-      {/* 2. Selector de Moneda */}
-      <div className="relative border-b md:border-b-0 md:border-r border-slate-100 flex items-center px-4 md:px-3 py-3 md:py-0">
-        <div className="flex bg-slate-100 p-1 rounded-xl w-full md:w-auto">
-          <button type="button" onClick={() => setMoneda("Pesos")} className={`flex-1 md:flex-none py-2 md:py-1.5 px-4 text-center rounded-lg text-[11px] md:text-xs font-black transition-all ${moneda === "Pesos" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400"}`}>ARS</button>
-          <button type="button" onClick={() => setMoneda("Dolares")} className={`flex-1 md:flex-none py-2 md:py-1.5 px-4 text-center rounded-lg text-[11px] md:text-xs font-black transition-all ${moneda === "Dolares" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400"}`}>USD</button>
+      <div className="relative flex items-center border-b border-slate-100 px-4 py-3 md:border-b-0 md:border-r md:px-3 md:py-0">
+        <div className="flex w-full rounded-xl bg-slate-100 p-1 md:w-auto">
+          <button
+            type="button"
+            onClick={() => setMoneda("Pesos")}
+            className={`flex-1 rounded-lg px-4 py-2 text-center text-[11px] font-black transition-all md:flex-none md:py-1.5 md:text-xs ${
+              moneda === "Pesos" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400"
+            }`}
+          >
+            ARS
+          </button>
+          <button
+            type="button"
+            onClick={() => setMoneda("Dolares")}
+            className={`flex-1 rounded-lg px-4 py-2 text-center text-[11px] font-black transition-all md:flex-none md:py-1.5 md:text-xs ${
+              moneda === "Dolares" ? "bg-white text-blue-600 shadow-sm" : "text-slate-400"
+            }`}
+          >
+            USD
+          </button>
         </div>
       </div>
 
-      {/* 3. Filtros (Precio + M2 + Ambientes) */}
-      <div className="relative border-b md:border-b-0 md:border-r border-slate-100 flex items-center px-4 py-4 md:py-0">
+      <div className="relative flex items-center border-b border-slate-100 px-4 py-4 md:border-b-0 md:border-r md:py-0">
         <button
           type="button"
-          onClick={() => setShowFiltros(!showFiltros)}
-          className="text-slate-700 font-bold flex justify-between md:justify-start items-center gap-2 w-full md:w-auto whitespace-nowrap text-sm"
+          onClick={() => setShowFiltros((currentValue) => !currentValue)}
+          className="flex w-full items-center justify-between gap-2 whitespace-nowrap text-sm font-bold text-slate-700 md:w-auto md:justify-start"
         >
           <span className="flex items-center gap-2">
             <SlidersHorizontal size={16} className="text-slate-400" />
             Filtros
-            {hayFiltrosActivos && <span className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></span>}
+            {activeFilters ? <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" /> : null}
           </span>
           <ChevronDown size={14} className={`transition-transform ${showFiltros ? "rotate-180" : ""}`} />
         </button>
 
-        {showFiltros && (
-          <div className="absolute top-[calc(100%+12px)] left-4 md:left-0 right-4 md:right-auto bg-white p-6 rounded-2xl shadow-2xl border border-slate-200 z-[99999] md:w-80 text-left animate-in fade-in slide-in-from-top-2 flex flex-col gap-6">
-
-            {/* Precio */}
+        {showFiltros ? (
+          <div className="absolute left-4 right-4 top-[calc(100%+12px)] z-[99999] flex flex-col gap-6 rounded-2xl border border-slate-200 bg-white p-6 text-left shadow-2xl animate-in fade-in slide-in-from-top-2 md:left-0 md:right-auto md:w-80">
             <div>
-              <h4 className="text-[10px] font-black text-slate-500 uppercase mb-3 tracking-widest flex items-center gap-2">
+              <h4 className="mb-3 flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-slate-500">
                 <DollarSign size={12} /> Precio en {moneda === "Pesos" ? "ARS" : "USD"}
               </h4>
               <div className="flex items-center gap-2">
-                <input type="number" placeholder="Min" value={minPrecio} onChange={(e) => setMinPrecio(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none" />
-                <span className="text-slate-400 font-bold flex-shrink-0">—</span>
-                <input type="number" placeholder="Max" value={maxPrecio} onChange={(e) => setMaxPrecio(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none" />
+                <input
+                  type="number"
+                  placeholder="Min"
+                  value={minPrecio}
+                  onChange={(event) => setMinPrecio(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm text-slate-900 focus:outline-none"
+                />
+                <span className="flex-shrink-0 font-bold text-slate-400">-</span>
+                <input
+                  type="number"
+                  placeholder="Max"
+                  value={maxPrecio}
+                  onChange={(event) => setMaxPrecio(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm text-slate-900 focus:outline-none"
+                />
               </div>
             </div>
 
-            {/* M2 */}
             <div>
-              <h4 className="text-[10px] font-black text-slate-500 uppercase mb-3 tracking-widest">Superficie (m²)</h4>
+              <h4 className="mb-3 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                Superficie (m²)
+              </h4>
               <div className="flex items-center gap-2">
-                <input type="number" placeholder="Min m²" value={minM2} onChange={(e) => setMinM2(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none" />
-                <span className="text-slate-400 font-bold flex-shrink-0">—</span>
-                <input type="number" placeholder="Max m²" value={maxM2} onChange={(e) => setMaxM2(e.target.value)} className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:outline-none" />
+                <input
+                  type="number"
+                  placeholder="Min m²"
+                  value={minM2}
+                  onChange={(event) => setMinM2(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm text-slate-900 focus:outline-none"
+                />
+                <span className="flex-shrink-0 font-bold text-slate-400">-</span>
+                <input
+                  type="number"
+                  placeholder="Max m²"
+                  value={maxM2}
+                  onChange={(event) => setMaxM2(event.target.value)}
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm text-slate-900 focus:outline-none"
+                />
               </div>
             </div>
 
-            {/* Ambientes */}
             <div>
-              <h4 className="text-[10px] font-black text-slate-500 uppercase mb-3 tracking-widest">Ambientes</h4>
-              <div className="flex gap-2 flex-wrap">
-                {opcionesAmbientes.map((op) => (
+              <h4 className="mb-3 text-[10px] font-black uppercase tracking-widest text-slate-500">
+                Ambientes
+              </h4>
+              <div className="flex flex-wrap gap-2">
+                {ROOM_OPTIONS.map((option) => (
                   <button
-                    key={op}
+                    key={option}
                     type="button"
-                    onClick={() => setAmbientes(ambientes === op ? "" : op)}
-                    className={`px-4 py-2 rounded-xl text-xs font-black border transition-all ${ambientes === op ? "bg-blue-600 text-white border-blue-600 shadow-md" : "bg-slate-50 text-slate-600 border-slate-200 hover:border-blue-300"}`}
+                    onClick={() => setAmbientes((currentValue) => (currentValue === option ? "" : option))}
+                    className={`rounded-xl border px-4 py-2 text-xs font-black transition-all ${
+                      ambientes === option
+                        ? "border-blue-600 bg-blue-600 text-white shadow-md"
+                        : "border-slate-200 bg-slate-50 text-slate-600 hover:border-blue-300"
+                    }`}
                   >
-                    {op}
+                    {option}
                   </button>
                 ))}
               </div>
@@ -166,46 +265,59 @@ export default function SearchBar({
             <button
               type="button"
               onClick={() => setShowFiltros(false)}
-              className="w-full bg-blue-600 text-white py-3 rounded-xl text-xs font-black shadow-md hover:bg-blue-700 transition-colors"
+              className="w-full rounded-xl bg-blue-600 py-3 text-xs font-black text-white shadow-md transition-colors hover:bg-blue-700"
             >
               APLICAR
             </button>
           </div>
-        )}
+        ) : null}
       </div>
 
-      {/* 4. Zonas (Tags + Input) */}
-      <div className="flex-grow min-w-0 relative flex items-center gap-2 px-4 h-[60px] md:h-[60px]">
-        <div className="flex flex-nowrap items-center gap-2 flex-grow overflow-x-auto no-scrollbar py-1">
-          {zonasSeleccionadas.map(z => (
-            <div key={z} className="flex items-center gap-1 bg-slate-100 text-slate-700 px-3 py-1 rounded-full text-[11px] font-bold border border-slate-200 h-7 flex-shrink-0">
-              <span>{z}</span>
-              <button type="button" onClick={() => eliminarZona(z)} className="text-slate-400 hover:text-slate-700"><X size={14} /></button>
+      <div className="relative flex h-[60px] min-w-0 flex-grow items-center gap-2 px-4">
+        <div className="flex flex-grow flex-nowrap items-center gap-2 overflow-x-auto py-1 no-scrollbar">
+          {zonasSeleccionadas.map((zona) => (
+            <div
+              key={zona}
+              className="flex h-7 flex-shrink-0 items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-3 py-1 text-[11px] font-bold text-slate-700"
+            >
+              <span>{zona}</span>
+              <button
+                type="button"
+                onClick={() => eliminarZona(zona)}
+                className="text-slate-400 hover:text-slate-700"
+              >
+                <X size={14} />
+              </button>
             </div>
           ))}
+
           <input
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            onChange={(event) => setInputValue(event.target.value)}
             placeholder={zonasSeleccionadas.length === 0 ? "Ingresá localidades..." : ""}
-            className="flex-grow py-2 text-slate-800 bg-transparent focus:outline-none min-w-[120px] font-medium text-sm h-8 placeholder:text-slate-400 flex-shrink-0"
+            className="h-8 min-w-[120px] flex-grow flex-shrink-0 bg-transparent py-2 text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none"
           />
         </div>
 
-        {sugerencias.length > 0 && (
-          <div className="absolute left-0 top-[calc(100%+12px)] w-full bg-white rounded-2xl shadow-2xl border border-slate-200 z-[99999] overflow-y-auto max-h-60 custom-scrollbar">
-            {sugerencias.map((s, index) => (
-              <button key={`${s}-${index}`} type="button" onClick={() => agregarZona(s)} className="w-full px-6 py-4 hover:bg-blue-50 text-slate-700 font-bold text-sm text-left border-b border-slate-50 last:border-b-0 transition-colors">
-                {s}
+        {deferredInputValue.trim().length >= 2 && sugerencias.length > 0 ? (
+          <div className="custom-scrollbar absolute left-0 top-[calc(100%+12px)] z-[99999] max-h-60 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
+            {sugerencias.map((suggestion) => (
+              <button
+                key={suggestion}
+                type="button"
+                onClick={() => agregarZona(suggestion)}
+                className="w-full border-b border-slate-50 px-6 py-4 text-left text-sm font-bold text-slate-700 transition-colors hover:bg-blue-50 last:border-b-0"
+              >
+                {suggestion}
               </button>
             ))}
           </div>
-        )}
+        ) : null}
       </div>
 
-      {/* Botón de búsqueda */}
       <button
         type="submit"
-        className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-10 h-[60px] md:h-auto w-full md:w-auto rounded-b-2xl md:rounded-bl-none md:rounded-r-[2rem] transition-all active:scale-95 text-sm flex-shrink-0"
+        className="h-[60px] w-full flex-shrink-0 rounded-b-2xl bg-blue-600 px-10 text-sm font-bold text-white transition-all hover:bg-blue-700 active:scale-95 md:h-auto md:w-auto md:rounded-r-[2rem] md:rounded-bl-none"
       >
         Buscar
       </button>

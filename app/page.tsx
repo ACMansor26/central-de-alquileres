@@ -1,130 +1,195 @@
-"use client";
-
-import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import PropertyCard from "@/components/propiedades/PropertyCard";
 import { supabase } from "@/lib/supabase";
 import SearchBar from "@/components/ui/SearchBar";
 
-export default function Home() {
-  const [propiedades, setPropiedades] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+interface FeaturedProperty {
+  id: string;
+  direccion: string;
+  zona: string;
+  precio: number;
+  moneda: string;
+  expensas?: number | null;
+  tipo: string;
+  metros: number;
+  ambientes?: number;
+  orientacion?: string;
+  amenityScore?: number;
+  antiguedad_anios?: number;
+  tieneCochera: boolean;
+  tienePileta: boolean;
+  tieneSeguridad: boolean;
+  tienePatio?: boolean;
+  tieneBalcon?: boolean;
+  politicaMascotas?: string;
+  url: string;
+  imagen_url: string | null;
+}
 
-  useEffect(() => {
-    const loadInitialData = async () => {
-      
-      const getMejoresPorTipo = async (tipo: string) => {
-        const { data, error } = await supabase
-          .from('vista_propiedades_front')
-          .select('*')
-          .ilike('Tipo', tipo)
-          .not('Metros', 'is', null)
-          .gt('Metros', 0)
-          .order('amenity_score', { ascending: false, nullsFirst: false })
-          .order('id_publicacion', { ascending: false }) 
-          .limit(2);
-          
-        if (error) console.error(`Error cargando ${tipo}:`, error);
-        return data || [];
-      };
+interface FeaturedPropertyRow {
+  id_publicacion: string | number | null;
+  Direccion: string | null;
+  zona: string | null;
+  precio_alquiler: number | null;
+  moneda_alquiler: string | null;
+  expensas_num: number | null;
+  Tipo: string | null;
+  Metros: number | string | null;
+  ambientes: number | null;
+  orientacion: string | null;
+  amenity_score: number | null;
+  antiguedad_anios: number | null;
+  tiene_cochera: boolean | null;
+  tiene_pileta: boolean | null;
+  tiene_seguridad: boolean | null;
+  tiene_patio: boolean | null;
+  tiene_balcon: boolean | null;
+  URL: string | null;
+  imagen_url: string | null;
+}
 
-      const [deptos, casas, phs] = await Promise.all([
-        getMejoresPorTipo('Departamento'),
-        getMejoresPorTipo('Casa'),
-        getMejoresPorTipo('Ph') 
-      ]);
+const FEATURED_PROPERTY_SELECT = `
+  id_publicacion,
+  Direccion,
+  zona,
+  precio_alquiler,
+  moneda_alquiler,
+  expensas_num,
+  Tipo,
+  Metros,
+  ambientes,
+  orientacion,
+  amenity_score,
+  antiguedad_anios,
+  tiene_cochera,
+  tiene_pileta,
+  tiene_seguridad,
+  tiene_patio,
+  tiene_balcon,
+  URL,
+  imagen_url
+`;
 
-      const destacadasRaw = [...deptos, ...casas, ...phs];
+function mapFeaturedProperty(row: FeaturedPropertyRow): FeaturedProperty {
+  return {
+    id: row.id_publicacion?.toString() ?? `${row.Tipo ?? "prop"}-${row.Direccion ?? "sin-id"}`,
+    direccion: row.Direccion ?? "Dirección no informada",
+    zona: row.zona ?? "Zona no informada",
+    precio: row.precio_alquiler ?? 0,
+    moneda: row.moneda_alquiler ?? "Pesos",
+    expensas: row.expensas_num,
+    tipo: row.Tipo ?? "Propiedad",
+    metros: Number(row.Metros) || 0,
+    ambientes: row.ambientes ?? undefined,
+    orientacion: row.orientacion ?? undefined,
+    amenityScore: row.amenity_score ?? undefined,
+    antiguedad_anios: row.antiguedad_anios ?? undefined,
+    tieneCochera: Boolean(row.tiene_cochera),
+    tienePileta: Boolean(row.tiene_pileta),
+    tieneSeguridad: Boolean(row.tiene_seguridad),
+    tienePatio: Boolean(row.tiene_patio),
+    tieneBalcon: Boolean(row.tiene_balcon),
+    url: row.URL ?? "",
+    imagen_url: row.imagen_url,
+  };
+}
 
-      if (destacadasRaw.length > 0) {
-        setPropiedades(destacadasRaw.map((p: any) => ({
-          id: p.id_publicacion?.toString(),
-          direccion: p.Direccion,
-          zona: p.zona,
-          precio: p.precio_alquiler,
-          moneda: p.moneda_alquiler,
-          expensas: p.expensas_num,
-          tipo: p.Tipo,
-          metros: Number(p.Metros) || 0,
-          ambientes: p.ambientes,
-          orientacion: p.orientacion,
-          amenityScore: p.amenity_score,
-          antiguedad_anios: p.antiguedad_anios,
-          tieneCochera: p.tiene_cochera,
-          tienePileta: p.tiene_pileta,
-          tieneSeguridad: p.tiene_seguridad,
-          tienePatio: p.tiene_patio,
-          tieneBalcon: p.tiene_balcon,
-          url: p.URL,
-          politicaMascotas: p.politica_mascotas,
-          imagen_url: p.imagen_url
-        })));
-      }
-      setLoading(false);
-    };
-    
-    loadInitialData();
-  }, []);
+async function getFeaturedProperties(): Promise<FeaturedProperty[]> {
+  const getBestByType = async (tipo: string) => {
+    const { data, error } = await supabase
+      .from("vista_propiedades_front")
+      .select(FEATURED_PROPERTY_SELECT)
+      .ilike("Tipo", tipo)
+      .not("Metros", "is", null)
+      .gt("Metros", 0)
+      .order("amenity_score", { ascending: false, nullsFirst: false })
+      .order("id_publicacion", { ascending: false })
+      .limit(2);
+
+    if (error) {
+      console.error(`Error cargando ${tipo}:`, error);
+      return [];
+    }
+
+    return (data ?? []) as FeaturedPropertyRow[];
+  };
+
+  const [deptos, casas, phs] = await Promise.all([
+    getBestByType("Departamento"),
+    getBestByType("Casa"),
+    getBestByType("Ph"),
+  ]);
+
+  return [...deptos, ...casas, ...phs].map(mapFeaturedProperty);
+}
+
+export default async function Home() {
+  const propiedades = await getFeaturedProperties();
 
   return (
     <main className="flex min-h-screen flex-col bg-slate-50">
-      
-      {/* HERO SECTION */}
-      <section className="relative w-full min-h-[70vh] flex flex-col items-center justify-center bg-zinc-950 px-4 pt-20 pb-16">
-        
-        {/* Decoración abstracta de fondo - contenida en su propio wrapper */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[400px] bg-indigo-500/20 blur-[120px] rounded-full -z-0"></div>
-          <div className="absolute bottom-0 right-0 w-[400px] h-[300px] bg-rose-500/10 blur-[100px] rounded-full -z-0"></div>
+      <section className="relative flex min-h-[70vh] w-full flex-col items-center justify-center bg-zinc-950 px-4 pb-16 pt-20">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute left-1/2 top-0 -z-0 h-[400px] w-[800px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-[120px]" />
+          <div className="absolute bottom-0 right-0 -z-0 h-[300px] w-[400px] rounded-full bg-rose-500/10 blur-[100px]" />
         </div>
 
-        <div className="relative z-20 text-center w-full max-w-4xl mx-auto flex flex-col items-center mt-10">
-          
-          <span className="mb-6 px-4 py-1.5 bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-black tracking-widest uppercase rounded-full shadow-lg shadow-indigo-500/5">
+        <div className="relative z-20 mt-10 flex w-full max-w-4xl flex-col items-center text-center">
+          <span className="mb-6 rounded-full border border-indigo-500/20 bg-indigo-500/10 px-4 py-1.5 text-xs font-black uppercase tracking-widest text-indigo-400 shadow-lg shadow-indigo-500/5">
             ALQUILAR NO TIENE QUE SER UN ESTRÉS
           </span>
 
-          <h1 className="text-5xl md:text-7xl font-extrabold text-white tracking-tight mb-6 leading-[1.1]">
-            Todas las propiedades<br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-violet-400">
+          <h1 className="mb-6 text-5xl font-extrabold leading-[1.1] tracking-tight text-white md:text-7xl">
+            Todas las propiedades
+            <br />
+            <span className="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
               en un solo lugar
             </span>
           </h1>
 
-          <p className="text-zinc-400 text-lg md:text-xl font-medium mb-12 max-w-2xl">
-            Comparamos la oferta inmobiliaria por vos para que solo te preocupes por armar las cajas de la mudanza.
+          <p className="mb-12 max-w-2xl text-lg font-medium text-zinc-400 md:text-xl">
+            Comparamos la oferta inmobiliaria por vos para que solo te preocupes por
+            armar las cajas de la mudanza.
           </p>
 
-          {/* El SearchBar envuelto en Glassmorphism */}
-          <div className="w-full max-w-4xl mx-auto bg-white/10 p-2 rounded-[2rem] backdrop-blur-xl border border-white/10 shadow-2xl">
+          <div className="mx-auto w-full max-w-4xl rounded-[2rem] border border-white/10 bg-white/10 p-2 shadow-2xl backdrop-blur-xl">
             <SearchBar />
           </div>
         </div>
       </section>
 
-      {/* SECCIÓN DE DESTACADOS */}
-      <section className="w-full py-24 px-4 sm:px-6 lg:px-8 relative z-0">
-        <div className="max-w-7xl mx-auto">
-          
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-12 gap-4">
+      <section className="relative z-0 w-full px-4 py-24 sm:px-6 lg:px-8">
+        <div className="mx-auto max-w-7xl">
+          <div className="mb-12 flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
             <div>
-              <h2 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">Propiedades destacadas</h2>
-              <p className="text-slate-500 mt-2 font-medium text-lg">La mejor relación calidad-comodidades del mercado.</p>
+              <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
+                Propiedades destacadas
+              </h2>
+              <p className="mt-2 text-lg font-medium text-slate-500">
+                La mejor relación calidad-comodidades del mercado.
+              </p>
             </div>
-            <Link href="/buscar" className="inline-flex items-center gap-2 px-6 py-3 bg-white border border-slate-200 text-slate-700 font-bold rounded-2xl hover:bg-slate-50 hover:border-slate-300 transition-all shadow-sm active:scale-95">
+            <Link
+              href="/buscar"
+              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-3 font-bold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+            >
               Ver todo el listado →
             </Link>
           </div>
-          
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {loading ? (
-              <div className="col-span-3 flex flex-col items-center justify-center py-32 bg-white rounded-[3rem] border border-dashed border-slate-200">
-                <Loader2 className="animate-spin text-indigo-600 mb-4" size={48} />
-                <span className="text-slate-400 font-bold uppercase text-sm tracking-widest">Calculando ranking de propiedades...</span>
-              </div>
+
+          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+            {propiedades.length > 0 ? (
+              propiedades.map((propiedad) => (
+                <PropertyCard key={propiedad.id} data={propiedad} />
+              ))
             ) : (
-              propiedades.map(p => <PropertyCard key={p.id} data={p} />)
+              <div className="col-span-3 flex flex-col items-center justify-center rounded-[3rem] border border-dashed border-slate-200 bg-white py-32">
+                <Loader2 className="mb-4 text-indigo-600" size={48} />
+                <span className="text-sm font-bold uppercase tracking-widest text-slate-400">
+                  No pudimos cargar propiedades destacadas.
+                </span>
+              </div>
             )}
           </div>
         </div>
