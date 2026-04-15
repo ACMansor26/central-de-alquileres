@@ -138,39 +138,76 @@ export default async function BuscarPage({ searchParams }: SearchProps) {
         .filter(Boolean)
     : [];
 
-  let query = supabase
+  let resultsQuery = supabase
     .from("vista_propiedades_front")
-    .select(SEARCH_RESULT_SELECT, { count: "exact" });
+    .select(SEARCH_RESULT_SELECT);
 
-  if (tipo) query = query.eq("Tipo", tipo);
-  if (moneda) query = query.eq("moneda_alquiler", moneda);
-  if (minPrice !== undefined) query = query.gte("precio_alquiler", minPrice);
-  if (maxPrice !== undefined) query = query.lte("precio_alquiler", maxPrice);
-  if (minSquareMeters !== undefined) query = query.gte("Metros", minSquareMeters);
-  if (maxSquareMeters !== undefined) query = query.lte("Metros", maxSquareMeters);
+  if (tipo) resultsQuery = resultsQuery.eq("Tipo", tipo);
+  if (moneda) resultsQuery = resultsQuery.eq("moneda_alquiler", moneda);
+  if (minPrice !== undefined) resultsQuery = resultsQuery.gte("precio_alquiler", minPrice);
+  if (maxPrice !== undefined) resultsQuery = resultsQuery.lte("precio_alquiler", maxPrice);
+  if (minSquareMeters !== undefined) resultsQuery = resultsQuery.gte("Metros", minSquareMeters);
+  if (maxSquareMeters !== undefined) resultsQuery = resultsQuery.lte("Metros", maxSquareMeters);
 
   if (ambientes === "5+") {
-    query = query.gte("ambientes", 5);
+    resultsQuery = resultsQuery.gte("ambientes", 5);
   } else if (roomCount !== undefined) {
-    query = query.lte("ambientes", roomCount);
+    resultsQuery = resultsQuery.lte("ambientes", roomCount);
   }
 
   if (zoneList.length > 0) {
     const orString = zoneList.map((zone) => `zona.ilike.%${zone}%`).join(",");
-    query = query.or(orString);
+    resultsQuery = resultsQuery.or(orString);
   }
 
-  if (sort === "precio_asc") query = query.order("precio_alquiler", { ascending: true });
-  else if (sort === "precio_desc") query = query.order("precio_alquiler", { ascending: false });
-  else query = query.order("id_publicacion", { ascending: false });
-
-  const { data: resultados, count, error } = await query.range(from, to);
-
-  if (error) {
-    console.error("Error cargando resultados de búsqueda:", error);
+  if (sort === "precio_asc") {
+    resultsQuery = resultsQuery.order("precio_alquiler", { ascending: true });
+  } else if (sort === "precio_desc") {
+    resultsQuery = resultsQuery.order("precio_alquiler", { ascending: false });
+  } else {
+    resultsQuery = resultsQuery.order("id_publicacion", { ascending: false });
   }
 
-  const totalPages = Math.ceil((count || 0) / PAGE_SIZE);
+  let countQuery = supabase
+    .from("vista_propiedades_front")
+    .select("id_publicacion", { count: "exact", head: true });
+
+  if (tipo) countQuery = countQuery.eq("Tipo", tipo);
+  if (moneda) countQuery = countQuery.eq("moneda_alquiler", moneda);
+  if (minPrice !== undefined) countQuery = countQuery.gte("precio_alquiler", minPrice);
+  if (maxPrice !== undefined) countQuery = countQuery.lte("precio_alquiler", maxPrice);
+  if (minSquareMeters !== undefined) countQuery = countQuery.gte("Metros", minSquareMeters);
+  if (maxSquareMeters !== undefined) countQuery = countQuery.lte("Metros", maxSquareMeters);
+
+  if (ambientes === "5+") {
+    countQuery = countQuery.gte("ambientes", 5);
+  } else if (roomCount !== undefined) {
+    countQuery = countQuery.lte("ambientes", roomCount);
+  }
+
+  if (zoneList.length > 0) {
+    const orString = zoneList.map((zone) => `zona.ilike.%${zone}%`).join(",");
+    countQuery = countQuery.or(orString);
+  }
+
+  const [
+    { data: resultados, error: resultsError },
+    { count, error: countError },
+  ] = await Promise.all([
+    resultsQuery.range(from, to),
+    countQuery,
+  ]);
+
+  if (resultsError) {
+    console.error("Error cargando resultados de búsqueda:", resultsError);
+  }
+
+  if (countError) {
+    console.error("Error contando resultados de búsqueda:", countError);
+  }
+
+  const totalResults = count ?? 0;
+  const totalPages = Math.ceil(totalResults / PAGE_SIZE);
   const propiedades = ((resultados ?? []) as SearchResultRow[]).map(mapSearchResult);
 
   const currentSearchParams = {
@@ -198,7 +235,7 @@ export default async function BuscarPage({ searchParams }: SearchProps) {
 
             <div className="flex min-w-[130px] flex-col items-center justify-center rounded-[2rem] border border-slate-200 bg-white px-6 py-2.5 text-center shadow-sm">
               <span className="mb-1.5 text-base font-black leading-none text-slate-800">
-                {count ? count.toLocaleString("es-AR") : "0"}
+                {totalResults.toLocaleString("es-AR")}
               </span>
               <span className="text-[10px] font-bold uppercase leading-none tracking-widest text-slate-400">
                 Resultados
