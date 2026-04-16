@@ -138,8 +138,9 @@ export default async function BuscarPage({ searchParams }: SearchProps) {
         .filter(Boolean)
     : [];
 
+  // 1. Apuntamos a la nueva vista materializada
   let resultsQuery = supabase
-    .from("vista_propiedades_front")
+    .from("mv_propiedades_listas")
     .select(SEARCH_RESULT_SELECT);
 
   if (tipo) resultsQuery = resultsQuery.eq("Tipo", tipo);
@@ -168,9 +169,10 @@ export default async function BuscarPage({ searchParams }: SearchProps) {
     resultsQuery = resultsQuery.order("id_publicacion", { ascending: false });
   }
 
+  // 2. Apuntamos a la vista materializada y usamos count: "estimated" para ganar velocidad
   let countQuery = supabase
-    .from("vista_propiedades_front")
-    .select("id_publicacion", { count: "exact", head: true });
+    .from("mv_propiedades_listas")
+    .select("id_publicacion", { count: "estimated", head: true });
 
   if (tipo) countQuery = countQuery.eq("Tipo", tipo);
   if (moneda) countQuery = countQuery.eq("moneda_alquiler", moneda);
