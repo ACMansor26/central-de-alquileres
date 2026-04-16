@@ -223,21 +223,21 @@ export default async function BuscarPage({ searchParams }: SearchProps) {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 pt-28 sm:px-6 lg:px-8">
+    <main className="min-h-screen bg-slate-50 px-4 pt-28 sm:px-6 lg:px-8 pb-20">
       <div className="mx-auto max-w-7xl">
         <div className="mb-8">
           <div className="mb-8 flex items-center justify-between">
-            <Link href="/" className="group inline-flex items-center gap-2 font-bold text-indigo-600 hover:underline">
+            <Link href="/" className="group inline-flex items-center gap-2 font-semibold text-[#006AFF] hover:text-blue-800 hover:underline transition-colors">
               <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-1" />
               <span className="hidden sm:inline">Volver al inicio</span>
               <span className="sm:hidden">Volver</span>
             </Link>
 
-            <div className="flex min-w-[130px] flex-col items-center justify-center rounded-[2rem] border border-slate-200 bg-white px-6 py-2.5 text-center shadow-sm">
-              <span className="mb-1.5 text-base font-black leading-none text-slate-800">
+            <div className="flex min-w-[130px] flex-col items-center justify-center rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-center shadow-sm">
+              <span className="mb-1 text-base font-bold leading-none text-slate-800">
                 {totalResults.toLocaleString("es-AR")}
               </span>
-              <span className="text-[10px] font-bold uppercase leading-none tracking-widest text-slate-400">
+              <span className="text-[10px] font-semibold uppercase leading-none tracking-widest text-slate-500">
                 Resultados
               </span>
             </div>
@@ -265,29 +265,31 @@ export default async function BuscarPage({ searchParams }: SearchProps) {
         <div className="relative z-10">
           {propiedades.length > 0 ? (
             <>
-              <div className="grid grid-cols-1 gap-10 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
                 {propiedades.map((prop) => (
                   <PropertyCard key={prop.id} data={prop} />
                 ))}
               </div>
 
               {totalPages > 1 ? (
-                <div className="mt-20 flex items-center justify-center gap-6">
+                <div className="mt-16 flex items-center justify-center gap-6">
                   {currentPage > 1 ? (
                     <Link
                       href={buildSearchUrl(currentSearchParams, { page: currentPage - 1 })}
-                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 font-bold text-slate-700 shadow-sm transition-all hover:bg-slate-50"
+                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300"
                     >
                       <ChevronLeft size={20} /> Anterior
                     </Link>
                   ) : null}
-                  <span className="text-sm font-black uppercase tracking-widest text-slate-400">
-                    Página {currentPage} / {totalPages}
+                  
+                  <span className="text-sm font-semibold text-slate-500">
+                    Página {currentPage} de {totalPages}
                   </span>
+                  
                   {currentPage < totalPages ? (
                     <Link
                       href={buildSearchUrl(currentSearchParams, { page: currentPage + 1 })}
-                      className="flex items-center gap-2 rounded-xl border border-blue-600 bg-blue-600 px-6 py-3 font-bold text-white shadow-lg transition-all hover:bg-blue-700"
+                      className="flex items-center gap-2 rounded-xl border border-[#006AFF] bg-[#006AFF] px-6 py-3 font-semibold text-white shadow-md transition-all hover:bg-blue-700 hover:border-blue-700"
                     >
                       Siguiente <ChevronRight size={20} />
                     </Link>
@@ -296,11 +298,11 @@ export default async function BuscarPage({ searchParams }: SearchProps) {
               ) : null}
             </>
           ) : (
-            <div className="rounded-[2.5rem] border border-dashed border-slate-200 bg-white py-32 text-center shadow-inner">
-              <SearchIcon size={80} className="mx-auto mb-6 text-slate-100" />
-              <h2 className="text-2xl font-bold text-slate-800">No hay resultados</h2>
-              <p className="mt-2 text-slate-400">
-                Intentá ajustando los filtros en el buscador de arriba.
+            <div className="rounded-2xl border border-slate-200 bg-white py-32 text-center shadow-sm">
+              <SearchIcon size={64} className="mx-auto mb-4 text-slate-300" />
+              <h2 className="text-xl font-bold text-slate-800">No encontramos propiedades</h2>
+              <p className="mt-2 text-slate-500">
+                Intentá ajustando los filtros o ampliando la zona de búsqueda.
               </p>
             </div>
           )}

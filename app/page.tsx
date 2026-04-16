@@ -1,8 +1,12 @@
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import PropertyCard from "@/components/propiedades/PropertyCard";
-import { supabase } from "@/lib/supabase";
 import SearchBar from "@/components/ui/SearchBar";
+import { supabase } from "@/lib/supabase";
+
+const FEATURED_TYPES = ["Departamento", "Casa", "Ph"] as const;
+const FEATURED_CANDIDATES_PER_TYPE = 18;
+const FEATURED_ITEMS_PER_TYPE = 2;
 
 interface FeaturedProperty {
   id: string;
@@ -49,6 +53,10 @@ interface FeaturedPropertyRow {
   imagen_url: string | null;
 }
 
+interface FeaturedCandidate extends FeaturedProperty {
+  qualityScore: number;
+}
+
 const FEATURED_PROPERTY_SELECT = `
   id_publicacion,
   Direccion,
@@ -70,6 +78,83 @@ const FEATURED_PROPERTY_SELECT = `
   URL,
   imagen_url
 `;
+
+function normalizeText(value?: string | null) {
+  return (
+    value
+      ?.normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim() ?? ""
+  );
+}
+
+function isInformativeAddress(value?: string | null) {
+  const normalized = normalizeText(value);
+
+  return Boolean(
+    normalized &&
+      normalized !== "direccion no informada" &&
+      normalized !== "sin direccion" &&
+      normalized !== "no informada"
+  );
+}
+
+function isFiniteValue(value: number | string | null | undefined) {
+  if (value === null || value === undefined) return false;
+
+  return Number.isFinite(Number(value));
+}
+
+function getDedupeKey(row: FeaturedPropertyRow) {
+  const normalizedUrl = row.URL?.trim().toLowerCase();
+  if (normalizedUrl) return `url:${normalizedUrl}`;
+
+  return [
+    normalizeText(row.Tipo),
+    normalizeText(row.zona),
+    normalizeText(row.Direccion),
+  ].join("|");
+}
+
+function buildQualityScore(row: FeaturedPropertyRow) {
+  const amenityScore = row.amenity_score ?? 0;
+  const metros = isFiniteValue(row.Metros) ? Number(row.Metros) : 0;
+  const ambientes = row.ambientes ?? 0;
+  const amenityFlags = [
+    row.tiene_cochera,
+    row.tiene_pileta,
+    row.tiene_seguridad,
+    row.tiene_patio,
+    row.tiene_balcon,
+  ].filter(Boolean).length;
+
+  return (
+    amenityScore * 10 +
+    Math.min(metros, 220) / 12 +
+    Math.min(ambientes, 6) * 1.5 +
+    amenityFlags * 1.5 +
+    (isFiniteValue(row.expensas_num) ? 2 : 0) +
+    (row.orientacion?.trim() ? 1 : 0) +
+    (row.antiguedad_anios !== null && row.antiguedad_anios !== undefined ? 1 : 0) +
+    ((row.id_publicacion ? Number(row.id_publicacion) : 0) % 1000) / 1000
+  );
+}
+
+function isFeaturedCandidate(row: FeaturedPropertyRow) {
+  return (
+    Boolean(row.id_publicacion) &&
+    Boolean(row.URL?.trim()) &&
+    Boolean(row.imagen_url?.trim()) &&
+    Boolean(row.zona?.trim()) &&
+    isInformativeAddress(row.Direccion) &&
+    isFiniteValue(row.Metros) &&
+    Number(row.Metros) > 0 &&
+    isFiniteValue(row.precio_alquiler) &&
+    Number(row.precio_alquiler) > 0
+  );
+}
 
 function mapFeaturedProperty(row: FeaturedPropertyRow): FeaturedProperty {
   return {
@@ -95,99 +180,99 @@ function mapFeaturedProperty(row: FeaturedPropertyRow): FeaturedProperty {
   };
 }
 
+async function getFeaturedByType(tipo: (typeof FEATURED_TYPES)[number]) {
+  const { data, error } = await supabase
+    .from("vista_propiedades_front")
+    .select(FEATURED_PROPERTY_SELECT)
+    .ilike("Tipo", tipo)
+    .not("URL", "is", null)
+    .not("imagen_url", "is", null)
+    .order("amenity_score", { ascending: false, nullsFirst: false })
+    .order("id_publicacion", { ascending: false })
+    .limit(FEATURED_CANDIDATES_PER_TYPE);
+
+  if (error) {
+    console.error(`Error cargando ${tipo}:`, error);
+    return [];
+  }
+
+  const seen = new Set<string>();
+  const featuredCandidates: FeaturedCandidate[] = [];
+
+  for (const row of (data ?? []) as FeaturedPropertyRow[]) {
+    if (!isFeaturedCandidate(row)) continue;
+
+    const dedupeKey = getDedupeKey(row);
+    if (!dedupeKey || seen.has(dedupeKey)) continue;
+
+    seen.add(dedupeKey);
+    featuredCandidates.push({
+      ...mapFeaturedProperty(row),
+      qualityScore: buildQualityScore(row),
+    });
+  }
+
+  return featuredCandidates
+    .sort((a, b) => b.qualityScore - a.qualityScore)
+    .slice(0, FEATURED_ITEMS_PER_TYPE);
+}
+
 async function getFeaturedProperties(): Promise<FeaturedProperty[]> {
-  const getBestByType = async (tipo: string) => {
-    const { data, error } = await supabase
-      .from("vista_propiedades_front")
-      .select(FEATURED_PROPERTY_SELECT)
-      .ilike("Tipo", tipo)
-      .not("Metros", "is", null)
-      .gt("Metros", 0)
-      .order("amenity_score", { ascending: false, nullsFirst: false })
-      .order("id_publicacion", { ascending: false })
-      .limit(2);
-
-    if (error) {
-      console.error(`Error cargando ${tipo}:`, error);
-      return [];
-    }
-
-    return (data ?? []) as FeaturedPropertyRow[];
-  };
-
-  const [deptos, casas, phs] = await Promise.all([
-    getBestByType("Departamento"),
-    getBestByType("Casa"),
-    getBestByType("Ph"),
-  ]);
-
-  return [...deptos, ...casas, ...phs].map(mapFeaturedProperty);
+  const featuredByType = await Promise.all(FEATURED_TYPES.map((tipo) => getFeaturedByType(tipo)));
+  return featuredByType.flat();
 }
 
 export default async function Home() {
   const propiedades = await getFeaturedProperties();
 
   return (
-    <main className="flex min-h-screen flex-col bg-slate-50">
-      <section className="relative flex min-h-[70vh] w-full flex-col items-center justify-center bg-zinc-950 px-4 pb-16 pt-20">
-        <div className="pointer-events-none absolute inset-0 overflow-hidden">
-          <div className="absolute left-1/2 top-0 -z-0 h-[400px] w-[800px] -translate-x-1/2 rounded-full bg-indigo-500/20 blur-[120px]" />
-          <div className="absolute bottom-0 right-0 -z-0 h-[300px] w-[400px] rounded-full bg-rose-500/10 blur-[100px]" />
-        </div>
+    <main className="flex min-h-screen flex-col bg-white">
+      <section className="relative flex min-h-[65vh] w-full flex-col items-center justify-center px-4 pb-16 pt-20">
+        <div className="absolute inset-0 z-0 bg-[url('https://images.unsplash.com/photo-1600596542815-ffad4c1539a9?q=80&w=2075&auto=format&fit=crop')] bg-cover bg-center" />
+        <div className="absolute inset-0 z-0 bg-black/40" />
 
         <div className="relative z-20 mt-10 flex w-full max-w-4xl flex-col items-center text-center">
-          <span className="mb-6 rounded-full border border-indigo-500/20 bg-indigo-500/10 px-4 py-1.5 text-xs font-black uppercase tracking-widest text-indigo-400 shadow-lg shadow-indigo-500/5">
-            ALQUILAR NO TIENE QUE SER UN ESTRÉS
-          </span>
-
-          <h1 className="mb-6 text-5xl font-extrabold leading-[1.1] tracking-tight text-white md:text-7xl">
-            Todas las propiedades
-            <br />
-            <span className="bg-gradient-to-r from-indigo-400 to-violet-400 bg-clip-text text-transparent">
-              en un solo lugar
-            </span>
+          <h1 className="mb-4 text-4xl font-bold leading-tight text-white drop-shadow-lg md:text-6xl">
+            Encontrá tu próximo hogar
           </h1>
 
-          <p className="mb-12 max-w-2xl text-lg font-medium text-zinc-400 md:text-xl">
-            Comparamos la oferta inmobiliaria por vos para que solo te preocupes por
-            armar las cajas de la mudanza.
+          <p className="mb-10 max-w-2xl text-lg font-medium text-white/90 drop-shadow-md md:text-xl">
+            Buscá entre miles de propiedades en alquiler en Buenos Aires.
           </p>
 
-          <div className="mx-auto w-full max-w-4xl rounded-[2rem] border border-white/10 bg-white/10 p-2 shadow-2xl backdrop-blur-xl">
+          <div className="mx-auto w-full max-w-4xl rounded-xl bg-white p-3 shadow-2xl">
             <SearchBar />
           </div>
         </div>
       </section>
 
-      <section className="relative z-0 w-full px-4 py-24 sm:px-6 lg:px-8">
+      <section className="relative z-0 w-full bg-white px-4 py-16 sm:px-6 lg:px-8">
         <div className="mx-auto max-w-7xl">
-          <div className="mb-12 flex flex-col items-start justify-between gap-4 md:flex-row md:items-end">
+          <div className="mb-8 flex flex-col items-start justify-between gap-4 border-b border-slate-200 pb-4 md:flex-row md:items-end">
             <div>
-              <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 md:text-4xl">
-                Propiedades destacadas
+              <h2 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
+                Propiedades recomendadas para vos
               </h2>
-              <p className="mt-2 text-lg font-medium text-slate-500">
-                La mejor relación calidad-comodidades del mercado.
+              <p className="mt-1 text-base text-slate-500">
+                Una selección destacada con mejor calidad de datos y más variedad por tipo.
               </p>
             </div>
             <Link
               href="/buscar"
-              className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-6 py-3 font-bold text-slate-700 shadow-sm transition-all hover:border-slate-300 hover:bg-slate-50 active:scale-95"
+              className="font-semibold text-[#006AFF] transition-colors hover:text-blue-800 hover:underline"
             >
-              Ver todo el listado →
+              Ver más alquileres
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {propiedades.length > 0 ? (
-              propiedades.map((propiedad) => (
-                <PropertyCard key={propiedad.id} data={propiedad} />
-              ))
+              propiedades.map((propiedad) => <PropertyCard key={propiedad.id} data={propiedad} />)
             ) : (
-              <div className="col-span-3 flex flex-col items-center justify-center rounded-[3rem] border border-dashed border-slate-200 bg-white py-32">
-                <Loader2 className="mb-4 text-indigo-600" size={48} />
-                <span className="text-sm font-bold uppercase tracking-widest text-slate-400">
-                  No pudimos cargar propiedades destacadas.
+              <div className="col-span-3 flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50 py-32">
+                <Loader2 className="mb-4 animate-spin text-[#006AFF]" size={48} />
+                <span className="text-sm font-semibold text-slate-500">
+                  No pudimos cargar propiedades destacadas en este momento.
                 </span>
               </div>
             )}
