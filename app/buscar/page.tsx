@@ -77,7 +77,7 @@ function parsePositiveInt(value?: string) {
 function mapSearchResult(row: SearchResultRow) {
   return {
     id: row.id_publicacion?.toString() ?? `${row.Tipo ?? "prop"}-${row.Direccion ?? "sin-id"}`,
-    direccion: row.Direccion ?? "Dirección no informada",
+    direccion: row.Direccion ?? "Direccion no informada",
     zona: row.zona ?? "Zona no informada",
     precio: row.precio_alquiler ?? 0,
     moneda: row.moneda_alquiler ?? "Pesos",
@@ -118,13 +118,25 @@ function buildSearchUrl(
   return `/buscar?${nextParams.toString()}`;
 }
 
+function getVisiblePages(currentPage: number, hasNextPage: boolean) {
+  const firstPage = Math.max(1, currentPage - 1);
+  const lastPage = currentPage + (hasNextPage ? 1 : 0);
+  const pages: number[] = [];
+
+  for (let page = firstPage; page <= lastPage; page += 1) {
+    pages.push(page);
+  }
+
+  return pages;
+}
+
 export default async function BuscarPage({ searchParams }: SearchProps) {
   const sParams = await searchParams;
   const { q, tipo, min, max, page, sort, moneda, minM2, maxM2, ambientes } = sParams;
 
   const currentPage = Math.max(1, parsePositiveInt(page) ?? 1);
   const from = (currentPage - 1) * PAGE_SIZE;
-  const to = from + PAGE_SIZE - 1;
+  const to = from + PAGE_SIZE;
 
   const minPrice = parsePositiveInt(min);
   const maxPrice = parsePositiveInt(max);
@@ -138,10 +150,7 @@ export default async function BuscarPage({ searchParams }: SearchProps) {
         .filter(Boolean)
     : [];
 
-  // 1. Apuntamos a la nueva vista materializada
-  let resultsQuery = supabase
-    .from("mv_propiedades_listas")
-    .select(SEARCH_RESULT_SELECT);
+  let resultsQuery = supabase.from("mv_propiedades_listas").select(SEARCH_RESULT_SELECT);
 
   if (tipo) resultsQuery = resultsQuery.eq("Tipo", tipo);
   if (moneda) resultsQuery = resultsQuery.eq("moneda_alquiler", moneda);
@@ -169,48 +178,16 @@ export default async function BuscarPage({ searchParams }: SearchProps) {
     resultsQuery = resultsQuery.order("id_publicacion", { ascending: false });
   }
 
-  // 2. Apuntamos a la vista materializada y usamos count: "estimated" para ganar velocidad
-  let countQuery = supabase
-    .from("mv_propiedades_listas")
-    .select("id_publicacion", { count: "estimated", head: true });
-
-  if (tipo) countQuery = countQuery.eq("Tipo", tipo);
-  if (moneda) countQuery = countQuery.eq("moneda_alquiler", moneda);
-  if (minPrice !== undefined) countQuery = countQuery.gte("precio_alquiler", minPrice);
-  if (maxPrice !== undefined) countQuery = countQuery.lte("precio_alquiler", maxPrice);
-  if (minSquareMeters !== undefined) countQuery = countQuery.gte("Metros", minSquareMeters);
-  if (maxSquareMeters !== undefined) countQuery = countQuery.lte("Metros", maxSquareMeters);
-
-  if (ambientes === "5+") {
-    countQuery = countQuery.gte("ambientes", 5);
-  } else if (roomCount !== undefined) {
-    countQuery = countQuery.lte("ambientes", roomCount);
-  }
-
-  if (zoneList.length > 0) {
-    const orString = zoneList.map((zone) => `zona.ilike.%${zone}%`).join(",");
-    countQuery = countQuery.or(orString);
-  }
-
-  const [
-    { data: resultados, error: resultsError },
-    { count, error: countError },
-  ] = await Promise.all([
-    resultsQuery.range(from, to),
-    countQuery,
-  ]);
+  const { data: resultados, error: resultsError } = await resultsQuery.range(from, to);
 
   if (resultsError) {
-    console.error("Error cargando resultados de búsqueda:", resultsError);
+    console.error("Error cargando resultados de busqueda:", resultsError);
   }
 
-  if (countError) {
-    console.error("Error contando resultados de búsqueda:", countError);
-  }
-
-  const totalResults = count ?? 0;
-  const totalPages = Math.ceil(totalResults / PAGE_SIZE);
-  const propiedades = ((resultados ?? []) as SearchResultRow[]).map(mapSearchResult);
+  const rawResults = (resultados ?? []) as SearchResultRow[];
+  const hasNextPage = rawResults.length > PAGE_SIZE;
+  const propiedades = rawResults.slice(0, PAGE_SIZE).map(mapSearchResult);
+  const visiblePages = getVisiblePages(currentPage, hasNextPage);
 
   const currentSearchParams = {
     q,
@@ -225,11 +202,14 @@ export default async function BuscarPage({ searchParams }: SearchProps) {
   };
 
   return (
-    <main className="min-h-screen bg-slate-50 px-4 pt-28 sm:px-6 lg:px-8 pb-20">
+    <main className="min-h-screen bg-slate-50 px-4 pb-20 pt-28 sm:px-6 lg:px-8">
       <div className="mx-auto max-w-7xl">
         <div className="mb-8">
           <div className="mb-8 flex items-center justify-between">
-            <Link href="/" className="group inline-flex items-center gap-2 font-semibold text-[#006AFF] hover:text-blue-800 hover:underline transition-colors">
+            <Link
+              href="/"
+              className="group inline-flex items-center gap-2 font-semibold text-[#006AFF] transition-colors hover:text-blue-800 hover:underline"
+            >
               <ArrowLeft size={16} className="transition-transform group-hover:-translate-x-1" />
               <span className="hidden sm:inline">Volver al inicio</span>
               <span className="sm:hidden">Volver</span>
@@ -237,10 +217,10 @@ export default async function BuscarPage({ searchParams }: SearchProps) {
 
             <div className="flex min-w-[130px] flex-col items-center justify-center rounded-xl border border-slate-200 bg-white px-6 py-2.5 text-center shadow-sm">
               <span className="mb-1 text-base font-bold leading-none text-slate-800">
-                {totalResults.toLocaleString("es-AR")}
+                {propiedades.length.toLocaleString("es-AR")}
               </span>
               <span className="text-[10px] font-semibold uppercase leading-none tracking-widest text-slate-500">
-                Resultados
+                En pagina
               </span>
             </div>
           </div>
@@ -273,29 +253,56 @@ export default async function BuscarPage({ searchParams }: SearchProps) {
                 ))}
               </div>
 
-              {totalPages > 1 ? (
-                <div className="mt-16 flex items-center justify-center gap-6">
-                  {currentPage > 1 ? (
-                    <Link
-                      href={buildSearchUrl(currentSearchParams, { page: currentPage - 1 })}
-                      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-6 py-3 font-semibold text-slate-700 shadow-sm transition-all hover:bg-slate-50 hover:border-slate-300"
-                    >
-                      <ChevronLeft size={20} /> Anterior
-                    </Link>
-                  ) : null}
-                  
-                  <span className="text-sm font-semibold text-slate-500">
-                    Página {currentPage} de {totalPages}
-                  </span>
-                  
-                  {currentPage < totalPages ? (
-                    <Link
-                      href={buildSearchUrl(currentSearchParams, { page: currentPage + 1 })}
-                      className="flex items-center gap-2 rounded-xl border border-[#006AFF] bg-[#006AFF] px-6 py-3 font-semibold text-white shadow-md transition-all hover:bg-blue-700 hover:border-blue-700"
-                    >
-                      Siguiente <ChevronRight size={20} />
-                    </Link>
-                  ) : null}
+              {currentPage > 1 || hasNextPage ? (
+                <div className="mt-16 flex items-center justify-center gap-1 sm:gap-2">
+                    {currentPage > 1 ? (
+                      <Link
+                        href={buildSearchUrl(currentSearchParams, { page: currentPage - 1 })}
+                        aria-label="Pagina anterior"
+                        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-slate-700 sm:h-12 sm:w-12"
+                      >
+                        <ChevronLeft size={18} className="sm:h-5 sm:w-5" />
+                      </Link>
+                    ) : (
+                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center text-slate-300 sm:h-12 sm:w-12">
+                        <ChevronLeft size={18} className="sm:h-5 sm:w-5" />
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-1 sm:gap-2">
+                      {visiblePages.map((pageNumber) => {
+                        const isActive = pageNumber === currentPage;
+
+                        return (
+                          <Link
+                            key={pageNumber}
+                            href={buildSearchUrl(currentSearchParams, { page: pageNumber })}
+                            aria-current={isActive ? "page" : undefined}
+                            className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full border text-sm font-semibold transition-all sm:h-12 sm:w-12 sm:text-lg ${
+                              isActive
+                                ? "border-2 border-blue-500 text-slate-900"
+                                : "border-transparent text-slate-700 hover:text-slate-900"
+                            }`}
+                          >
+                            {pageNumber}
+                          </Link>
+                        );
+                      })}
+                    </div>
+
+                    {hasNextPage ? (
+                      <Link
+                        href={buildSearchUrl(currentSearchParams, { page: currentPage + 1 })}
+                        aria-label="Pagina siguiente"
+                        className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full text-slate-700 transition-colors hover:text-slate-900 sm:h-12 sm:w-12"
+                      >
+                        <ChevronRight size={18} className="sm:h-5 sm:w-5" />
+                      </Link>
+                    ) : (
+                      <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center text-slate-300 sm:h-12 sm:w-12">
+                        <ChevronRight size={18} className="sm:h-5 sm:w-5" />
+                      </div>
+                    )}
                 </div>
               ) : null}
             </>
@@ -304,7 +311,7 @@ export default async function BuscarPage({ searchParams }: SearchProps) {
               <SearchIcon size={64} className="mx-auto mb-4 text-slate-300" />
               <h2 className="text-xl font-bold text-slate-800">No encontramos propiedades</h2>
               <p className="mt-2 text-slate-500">
-                Intentá ajustando los filtros o ampliando la zona de búsqueda.
+                Intenta ajustando los filtros o ampliando la zona de busqueda.
               </p>
             </div>
           )}

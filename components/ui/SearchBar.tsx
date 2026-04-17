@@ -23,6 +23,7 @@ interface SearchBarProps {
 }
 
 const ROOM_OPTIONS = ["1", "2", "3", "4", "5+"];
+const MIN_ZONE_QUERY_LENGTH = 3;
 
 export default function SearchBar({
   initialTipo = "Departamento",
@@ -86,7 +87,7 @@ export default function SearchBar({
   useEffect(() => {
     const query = deferredInputValue.trim();
 
-    if (query.length < 2) {
+    if (query.length < MIN_ZONE_QUERY_LENGTH) {
       return;
     }
 
@@ -95,6 +96,7 @@ export default function SearchBar({
       fetchSuggestions(query, zonasSeleccionadas, controller.signal).catch((error) => {
         if (error instanceof Error && error.name === "AbortError") return;
         console.error(error);
+        setSugerencias([]);
       });
     }, 250);
 
@@ -103,6 +105,14 @@ export default function SearchBar({
       window.clearTimeout(timer);
     };
   }, [deferredInputValue, zonasSeleccionadas]);
+
+  const handleInputChange = (value: string) => {
+    setInputValue(value);
+
+    if (value.trim().length < MIN_ZONE_QUERY_LENGTH) {
+      setSugerencias([]);
+    }
+  };
 
   const agregarZona = (zona: string) => {
     setZonasSeleccionadas((currentZones) =>
@@ -152,7 +162,10 @@ export default function SearchBar({
           <option value="Casa">Casa</option>
           <option value="Ph">PH</option>
         </select>
-        <ChevronDown className="pointer-events-none absolute right-4 z-0 text-slate-400 md:right-3" size={14} />
+        <ChevronDown
+          className="pointer-events-none absolute right-4 z-0 text-slate-400 md:right-3"
+          size={14}
+        />
       </div>
 
       <div className="relative flex items-center border-b border-slate-100 px-4 py-3 md:border-b-0 md:border-r md:px-3 md:py-0">
@@ -187,9 +200,14 @@ export default function SearchBar({
           <span className="flex items-center gap-2">
             <SlidersHorizontal size={16} className="text-slate-400" />
             Filtros
-            {activeFilters ? <span className="h-2 w-2 rounded-full bg-blue-500 animate-pulse" /> : null}
+            {activeFilters ? (
+              <span className="h-2 w-2 animate-pulse rounded-full bg-blue-500" />
+            ) : null}
           </span>
-          <ChevronDown size={14} className={`transition-transform ${showFiltros ? "rotate-180" : ""}`} />
+          <ChevronDown
+            size={14}
+            className={`transition-transform ${showFiltros ? "rotate-180" : ""}`}
+          />
         </button>
 
         {showFiltros ? (
@@ -219,12 +237,12 @@ export default function SearchBar({
 
             <div>
               <h4 className="mb-3 text-[10px] font-black uppercase tracking-widest text-slate-500">
-                Superficie (m²)
+                Superficie (m2)
               </h4>
               <div className="flex items-center gap-2">
                 <input
                   type="number"
-                  placeholder="Min m²"
+                  placeholder="Min m2"
                   value={minM2}
                   onChange={(event) => setMinM2(event.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm text-slate-900 focus:outline-none"
@@ -232,7 +250,7 @@ export default function SearchBar({
                 <span className="flex-shrink-0 font-bold text-slate-400">-</span>
                 <input
                   type="number"
-                  placeholder="Max m²"
+                  placeholder="Max m2"
                   value={maxM2}
                   onChange={(event) => setMaxM2(event.target.value)}
                   className="w-full rounded-xl border border-slate-200 bg-slate-50 p-2.5 text-sm text-slate-900 focus:outline-none"
@@ -249,7 +267,9 @@ export default function SearchBar({
                   <button
                     key={option}
                     type="button"
-                    onClick={() => setAmbientes((currentValue) => (currentValue === option ? "" : option))}
+                    onClick={() =>
+                      setAmbientes((currentValue) => (currentValue === option ? "" : option))
+                    }
                     className={`rounded-xl border px-4 py-2 text-xs font-black transition-all ${
                       ambientes === option
                         ? "border-blue-600 bg-blue-600 text-white shadow-md"
@@ -274,7 +294,7 @@ export default function SearchBar({
       </div>
 
       <div className="relative flex h-[60px] min-w-0 flex-grow items-center gap-2 px-4">
-        <div className="flex flex-grow flex-nowrap items-center gap-2 overflow-x-auto py-1 no-scrollbar">
+        <div className="no-scrollbar flex flex-grow flex-nowrap items-center gap-2 overflow-x-auto py-1">
           {zonasSeleccionadas.map((zona) => (
             <div
               key={zona}
@@ -293,13 +313,13 @@ export default function SearchBar({
 
           <input
             value={inputValue}
-            onChange={(event) => setInputValue(event.target.value)}
-            placeholder={zonasSeleccionadas.length === 0 ? "Ingresá localidades..." : ""}
+            onChange={(event) => handleInputChange(event.target.value)}
+            placeholder={zonasSeleccionadas.length === 0 ? "Ingresa localidades..." : ""}
             className="h-8 min-w-[120px] flex-grow flex-shrink-0 bg-transparent py-2 text-sm font-medium text-slate-800 placeholder:text-slate-400 focus:outline-none"
           />
         </div>
 
-        {deferredInputValue.trim().length >= 2 && sugerencias.length > 0 ? (
+        {deferredInputValue.trim().length >= MIN_ZONE_QUERY_LENGTH && sugerencias.length > 0 ? (
           <div className="custom-scrollbar absolute left-0 top-[calc(100%+12px)] z-[99999] max-h-60 w-full overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-2xl">
             {sugerencias.map((suggestion) => (
               <button
