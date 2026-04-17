@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -9,6 +10,7 @@ import PropertyCard from "@/components/propiedades/PropertyCard";
 import SearchBar from "@/components/ui/SearchBar";
 import SortDropdown from "@/components/ui/SortDropdown";
 import { supabase } from "@/lib/supabase";
+import { buildPageMetadata } from "@/lib/seo";
 
 interface SearchProps {
   searchParams: Promise<{
@@ -23,6 +25,22 @@ interface SearchProps {
     maxM2?: string;
     ambientes?: string;
   }>;
+}
+
+export async function generateMetadata({
+  searchParams,
+}: SearchProps): Promise<Metadata> {
+  const params = await searchParams;
+  const hasFilters = Object.values(params).some(Boolean);
+
+  return buildPageMetadata({
+    title: hasFilters ? "Resultados de busqueda" : "Buscar alquileres",
+    description: hasFilters
+      ? "Resultados filtrados de alquileres en AMBA por zona, tipo, precio, superficie y ambientes."
+      : "Busca alquileres en AMBA por zona, tipo de propiedad, precio, metros y ambientes.",
+    path: "/buscar",
+    noIndex: hasFilters,
+  });
 }
 
 interface SearchResultRow {

@@ -1,5 +1,14 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { ArrowLeft, Database, Search, ShieldCheck, Zap, UserRoundSearch, BookOpen } from "lucide-react";
+import { buildPageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "Metodologia y documentacion tecnica",
+  description:
+    "Conoce la metodologia de scraping, limpieza de datos, modelado relacional y optimizacion usada en Central de Alquileres.",
+  path: "/metodologia",
+});
 
 export default function MetodologiaPage() {
   return (

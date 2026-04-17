@@ -1,12 +1,21 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import PropertyCard from "@/components/propiedades/PropertyCard";
 import SearchBar from "@/components/ui/SearchBar";
 import { supabase } from "@/lib/supabase";
+import { buildPageMetadata } from "@/lib/seo";
 
 const FEATURED_TYPES = ["Departamento", "Casa", "Ph"] as const;
 const FEATURED_CANDIDATES_PER_TYPE = 18;
 const FEATURED_ITEMS_PER_TYPE = 2;
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "Alquileres en AMBA",
+  description:
+    "Explora alquileres en AMBA con filtros por zona, precio, metros y tipo de propiedad en una sola plataforma.",
+  path: "/",
+});
 
 interface FeaturedProperty {
   id: string;

@@ -1,8 +1,17 @@
+import type { Metadata } from "next";
 import { supabase } from "@/lib/supabase";
 import { BarChart3, PieChart, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import PriceByZoneChart from "@/components/analisis/PriceByZoneChart";
+import { buildPageMetadata } from "@/lib/seo";
+
+export const metadata: Metadata = buildPageMetadata({
+  title: "Analisis del mercado de alquileres",
+  description:
+    "Visualiza tendencias, precios y distribucion del mercado de alquileres en AMBA con datos consolidados.",
+  path: "/analisis",
+});
 
 export default async function AnalisisPage() {
   const { data: propiedades } = await supabase
