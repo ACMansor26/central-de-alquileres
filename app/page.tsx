@@ -182,7 +182,7 @@ function mapFeaturedProperty(row: FeaturedPropertyRow): FeaturedProperty {
 
 async function getFeaturedByType(tipo: (typeof FEATURED_TYPES)[number]) {
   const { data, error } = await supabase
-    .from("vista_propiedades_front")
+    .from("mv_propiedades_listas")
     .select(FEATURED_PROPERTY_SELECT)
     .ilike("Tipo", tipo)
     .not("URL", "is", null)
