@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Bar,
   BarChart,
@@ -11,112 +11,158 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { ArrowDownAZ, ArrowUpAZ, Info } from "lucide-react";
+import type { TooltipProps } from "recharts";
+import type { Payload } from "recharts/types/component/DefaultTooltipContent";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
-
-interface RawData {
-  zona: string;
-  precio_alquiler_ars: number;
-  tipo: string;
-}
+import ChartMountGuard from "@/components/analisis/ChartMountGuard";
+import { ANALYSIS_CHART_COLORS } from "@/components/analisis/chartTheme";
 
 type PropertyType = "Departamento" | "Casa" | "PH";
-
-type ZoneBuckets = Record<PropertyType, number[]>;
+type CurrencyMode = "ARS" | "Pesos" | "Dolares";
 
 type ChartDatum = {
   name: string;
+  shortName: string;
   Departamento: number | null;
   Casa: number | null;
   PH: number | null;
+  departamentoCount: number;
+  casaCount: number;
+  phCount: number;
   totalProps: number;
-  sortValue: number;
+  globalMedian: number | null;
 };
 
-const MIN_PRICE_ARS = 50_000;
-const MAX_PRICE_ARS = 10_000_000;
 const MIN_ZONE_SAMPLE = 5;
-const MAX_ZONES = 25;
-
+const MAX_ZONES = 16;
 const PROPERTY_TYPES: PropertyType[] = ["Departamento", "PH", "Casa"];
 
 const BAR_COLORS: Record<PropertyType, string> = {
-  Departamento: "#4f46e5",
-  PH: "#f59e0b",
-  Casa: "#10b981",
+  Departamento: ANALYSIS_CHART_COLORS.primary,
+  PH: ANALYSIS_CHART_COLORS.secondary,
+  Casa: ANALYSIS_CHART_COLORS.accent,
 };
 
-function getMedian(values: number[]) {
-  if (values.length === 0) return null;
+function formatCurrency(value: number, currencyMode: CurrencyMode) {
+  if (currencyMode === "Dolares") {
+    if (value >= 1_000) {
+      return `U$S ${(value / 1_000).toLocaleString("es-AR", {
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 1,
+      })} mil`;
+    }
 
-  const sorted = [...values].sort((a, b) => a - b);
-  const mid = Math.floor(sorted.length / 2);
+    return `U$S ${Math.round(value).toLocaleString("es-AR")}`;
+  }
 
-  return sorted.length % 2 !== 0
-    ? sorted[mid]
-    : (sorted[mid - 1] + sorted[mid]) / 2;
+  if (value >= 1_000_000) {
+    return `$${(value / 1_000_000).toLocaleString("es-AR", {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 1,
+    })} M`;
+  }
+
+  return `$${Math.round(value / 1_000).toLocaleString("es-AR")} mil`;
 }
 
-function getPropertyType(tipo: string): PropertyType | null {
-  const normalizedType = tipo.trim().toLowerCase();
+function CustomTooltip({
+  active,
+  payload,
+  currencyMode,
+}: TooltipProps<ValueType, NameType> & {
+  currencyMode: CurrencyMode;
+  payload?: Array<Payload<ValueType, NameType>>;
+}) {
+  if (!active || !payload?.length) return null;
 
-  if (normalizedType.includes("departamento")) return "Departamento";
-  if (normalizedType.includes("casa")) return "Casa";
-  if (normalizedType.includes("ph")) return "PH";
+  const datum = payload[0]?.payload as ChartDatum | undefined;
+  if (!datum) return null;
 
-  return null;
+  const rows: Array<{ label: PropertyType; value: number | null; count: number }> = [
+    {
+      label: "Departamento",
+      value: datum.Departamento,
+      count: datum.departamentoCount,
+    },
+    {
+      label: "PH",
+      value: datum.PH,
+      count: datum.phCount,
+    },
+    {
+      label: "Casa",
+      value: datum.Casa,
+      count: datum.casaCount,
+    },
+  ];
+
+  return (
+    <div className="min-w-[260px] rounded-3xl border border-slate-200 bg-white/98 p-4 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)]">
+      <div className="mb-3 border-b border-slate-100 pb-3">
+        <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+          Zona
+        </p>
+        <p className="mt-1 text-sm font-bold text-slate-900">{datum.name}</p>
+        <p className="mt-1 text-xs font-medium text-slate-500">
+          {datum.totalProps} publicaciones tomadas para esta zona
+        </p>
+      </div>
+
+      <div className="space-y-2.5">
+        {rows.map((row) => (
+          <div key={row.label} className="flex items-center justify-between gap-4 text-sm">
+            <div className="flex min-w-0 items-center gap-2">
+              <span
+                className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
+                style={{ backgroundColor: BAR_COLORS[row.label] }}
+              />
+              <span className="font-medium text-slate-700">{row.label}</span>
+            </div>
+
+            <div className="text-right">
+              <div className="font-semibold text-slate-900">
+                {row.value ? formatCurrency(row.value, currencyMode) : "Muestra baja"}
+              </div>
+              <div className="text-xs text-slate-500">{row.count} avisos</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
 }
 
-export default function PriceByZoneChart({ rawData }: { rawData: RawData[] }) {
+export default function PriceByZoneChart({
+  data,
+  currencyMode = "ARS",
+}: {
+  data: ChartDatum[];
+  currencyMode?: CurrencyMode;
+}) {
+  const [sortDirection, setSortDirection] = useState<"desc" | "asc">("desc");
+
   const chartData = useMemo<ChartDatum[]>(() => {
-    const zones: Record<string, ZoneBuckets> = {};
-
-    rawData.forEach((item) => {
-      if (
-        !item.zona?.trim() ||
-        item.precio_alquiler_ars <= MIN_PRICE_ARS ||
-        item.precio_alquiler_ars >= MAX_PRICE_ARS
-      ) {
-        return;
-      }
-
-      const propertyType = getPropertyType(item.tipo ?? "");
-      if (!propertyType) return;
-
-      const zoneName = item.zona.trim();
-
-      if (!zones[zoneName]) {
-        zones[zoneName] = { Departamento: [], Casa: [], PH: [] };
-      }
-
-      zones[zoneName][propertyType].push(item.precio_alquiler_ars);
-    });
-
-    return Object.entries(zones)
-      .map(([name, buckets]) => {
-        const departamentoMedian = getMedian(buckets.Departamento);
-        const casaMedian = getMedian(buckets.Casa);
-        const phMedian = getMedian(buckets.PH);
-        const totalProps =
-          buckets.Departamento.length + buckets.Casa.length + buckets.PH.length;
-        const sortValue = Math.max(
-          departamentoMedian ?? 0,
-          casaMedian ?? 0,
-          phMedian ?? 0
-        );
-
-        return {
-          name,
-          Departamento: departamentoMedian,
-          Casa: casaMedian,
-          PH: phMedian,
-          totalProps,
-          sortValue,
-        };
-      })
-      .filter((zone) => zone.totalProps >= MIN_ZONE_SAMPLE && zone.sortValue > 0)
-      .sort((a, b) => b.sortValue - a.sortValue)
+    return [...data]
+      .sort((a, b) =>
+        sortDirection === "desc"
+          ? (b.globalMedian ?? 0) - (a.globalMedian ?? 0)
+          : (a.globalMedian ?? 0) - (b.globalMedian ?? 0)
+      )
       .slice(0, MAX_ZONES);
-  }, [rawData]);
+  }, [data, sortDirection]);
+
+  const chartHeight = Math.max(420, chartData.length * 54 + 80);
+  const valueLabel =
+    currencyMode === "ARS"
+      ? "Valores normalizados a ARS"
+      : currencyMode === "Dolares"
+        ? "Valores originales en dolares"
+        : "Valores originales en pesos";
+  const sortLabel =
+    sortDirection === "desc"
+      ? `Top ${MAX_ZONES} zonas mas caras`
+      : `Top ${MAX_ZONES} zonas mas baratas`;
 
   if (chartData.length === 0) {
     return (
@@ -127,70 +173,126 @@ export default function PriceByZoneChart({ rawData }: { rawData: RawData[] }) {
   }
 
   return (
-    <div className="w-full h-full min-h-[450px]">
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={chartData} margin={{ top: 10, right: 30, left: 20, bottom: 110 }}>
-          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+    <div className="w-full min-w-0">
+      <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+            Zonas comparables
+          </p>
+          <p className="mt-1 text-sm font-semibold text-slate-800">Precio tipico por zona</p>
+          <div className="mt-1 flex flex-col gap-1 text-xs text-slate-500">
+            <p>
+              Se muestran hasta {MAX_ZONES} zonas por vista. Cada barra representa la
+              referencia tipica del alquiler para ese tipo de propiedad.
+            </p>
+            <p>
+              Solo se incluyen zonas con {MIN_ZONE_SAMPLE} o mas publicaciones y con
+              muestras validas en Departamento, PH y Casa.
+            </p>
+          </div>
+        </div>
 
-          <XAxis
-            dataKey="name"
-            axisLine={false}
-            tickLine={false}
-            tick={{ fill: "#64748b", fontSize: 11, fontWeight: 600 }}
-            angle={-45}
-            textAnchor="end"
-            interval={0}
-            dx={-5}
-            dy={10}
-          />
+        <div className="flex flex-col items-start gap-2 self-start sm:items-end sm:self-auto">
+          <p className="flex items-center gap-1.5 text-xs font-medium text-slate-400">
+            <Info size={13} />
+            {valueLabel}
+          </p>
 
-          <YAxis
-            axisLine={false}
-            tickLine={false}
-            tick={{ fill: "#94a3b8", fontSize: 11 }}
-            tickFormatter={(value: number) =>
-              `$${Math.round(value / 1000).toLocaleString("es-AR")}k`
-            }
-          />
+          <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1">
+            <button
+              type="button"
+              onClick={() => setSortDirection("desc")}
+              aria-pressed={sortDirection === "desc"}
+              className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                sortDirection === "desc"
+                  ? "bg-slate-950 text-white shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <ArrowDownAZ size={14} />
+              Mas caras
+            </button>
 
-          <Tooltip
-            cursor={{ fill: "#f8fafc" }}
-            contentStyle={{
-              borderRadius: "16px",
-              border: "none",
-              boxShadow: "0 10px 15px -3px rgb(0 0 0 / 0.1)",
-            }}
-            formatter={(value: ValueType | undefined, name: NameType | undefined) => {
-              if (typeof value !== "number") {
-                return ["Sin datos", String(name ?? "")];
-              }
+            <button
+              type="button"
+              onClick={() => setSortDirection("asc")}
+              aria-pressed={sortDirection === "asc"}
+              className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                sortDirection === "asc"
+                  ? "bg-slate-950 text-white shadow-sm"
+                  : "text-slate-600 hover:text-slate-900"
+              }`}
+            >
+              <ArrowUpAZ size={14} />
+              Mas baratas
+            </button>
+          </div>
 
-              return [
-                `$${value.toLocaleString("es-AR")}`,
-                `Mediana ${String(name ?? "")}`,
-              ];
-            }}
-            labelStyle={{ color: "#0f172a", fontWeight: "bold", marginBottom: "8px" }}
-          />
+          <p className="text-xs font-medium text-slate-400">{sortLabel}</p>
+        </div>
+      </div>
 
-          <Legend
-            verticalAlign="top"
-            align="right"
-            iconType="circle"
-            wrapperStyle={{ paddingBottom: "20px" }}
-          />
-
-          {PROPERTY_TYPES.map((propertyType) => (
-            <Bar
-              key={propertyType}
-              dataKey={propertyType}
-              fill={BAR_COLORS[propertyType]}
-              radius={[4, 4, 0, 0]}
-              maxBarSize={40}
+      <ChartMountGuard height={chartHeight}>
+        <ResponsiveContainer width="100%" height="100%" minWidth={0}>
+          <BarChart
+            layout="vertical"
+            data={chartData}
+            margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
+            barCategoryGap="22%"
+          >
+            <CartesianGrid
+              strokeDasharray="3 3"
+              horizontal={true}
+              vertical={false}
+              stroke={ANALYSIS_CHART_COLORS.grid}
             />
-          ))}
-        </BarChart>
-      </ResponsiveContainer>
+
+            <XAxis
+              type="number"
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: ANALYSIS_CHART_COLORS.softText, fontSize: 11 }}
+              tickFormatter={(value: number) => formatCurrency(value, currencyMode)}
+            />
+
+            <YAxis
+              type="category"
+              dataKey="shortName"
+              width={112}
+              axisLine={false}
+              tickLine={false}
+              tick={{ fill: ANALYSIS_CHART_COLORS.mutedText, fontSize: 12, fontWeight: 600 }}
+            />
+
+            <Tooltip
+              content={<CustomTooltip currencyMode={currencyMode} />}
+              cursor={{ fill: ANALYSIS_CHART_COLORS.hover }}
+            />
+
+            <Legend
+              verticalAlign="top"
+              align="right"
+              iconType="circle"
+              wrapperStyle={{
+                paddingBottom: "16px",
+                fontSize: "12px",
+                color: ANALYSIS_CHART_COLORS.mutedText,
+              }}
+            />
+
+            {PROPERTY_TYPES.map((propertyType) => (
+              <Bar
+                key={propertyType}
+                dataKey={propertyType}
+                name={propertyType}
+                fill={BAR_COLORS[propertyType]}
+                radius={[0, 999, 999, 0]}
+                maxBarSize={14}
+              />
+            ))}
+          </BarChart>
+        </ResponsiveContainer>
+      </ChartMountGuard>
     </div>
   );
 }

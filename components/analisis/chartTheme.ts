@@ -1,0 +1,18 @@
+export const ANALYSIS_CHART_COLORS = {
+  primary: "#2563eb",
+  primarySoft: "#93c5fd",
+  secondary: "#0f172a",
+  secondarySoft: "#cbd5e1",
+  accent: "#475569",
+  accentSoft: "#e2e8f0",
+  highlight: "#dbeafe",
+  success: "#1d4ed8",
+  successSoft: "#bfdbfe",
+  teal: "#0f766e",
+  tealSoft: "#99f6e4",
+  grid: "#e2e8f0",
+  text: "#0f172a",
+  mutedText: "#64748b",
+  softText: "#94a3b8",
+  hover: "#f8fafc",
+} as const;
