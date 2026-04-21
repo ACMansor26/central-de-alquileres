@@ -1,8 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 
-export const runtime = "edge";
-
 const MIN_QUERY_LENGTH = 3;
 const DB_RESULT_LIMIT = 20;
 const RESPONSE_LIMIT = 10;
