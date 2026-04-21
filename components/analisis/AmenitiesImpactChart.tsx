@@ -12,6 +12,7 @@ import {
 } from "recharts";
 import type { TooltipProps } from "recharts";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
+import type { Payload } from "recharts/types/component/DefaultTooltipContent";
 import ChartMountGuard from "@/components/analisis/ChartMountGuard";
 import { ANALYSIS_CHART_COLORS } from "@/components/analisis/chartTheme";
 
@@ -59,7 +60,11 @@ function CustomTooltip({
   payload,
   label,
   currencyMode,
-}: TooltipProps<ValueType, NameType> & { currencyMode: CurrencyMode }) {
+}: TooltipProps<ValueType, NameType> & {
+  currencyMode: CurrencyMode;
+  payload?: Array<Payload<ValueType, NameType>>;
+  label?: string | number;
+}) {
   if (!active || !payload?.length) return null;
 
   const datum = payload[0]?.payload as ChartDatum | undefined;
