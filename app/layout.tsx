@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
 import "./globals.css";
 import Navbar from "@/components/layout/navbar";
 import {
@@ -9,8 +8,6 @@ import {
   absoluteUrl,
   getBaseUrl,
 } from "@/lib/seo";
-
-const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   metadataBase: getBaseUrl(),
@@ -57,7 +54,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es">
-      <body className={inter.className}>
+      <body>
         <Navbar />
         {children}
       </body>

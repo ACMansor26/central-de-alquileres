@@ -325,7 +325,7 @@ export default async function AnalisisPage({ searchParams }: AnalisisPageProps) 
             {REPORT_INSIGHTS.map((insight) => (
               <article
                 key={insight.title}
-                className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.24)] sm:rounded-[28px] sm:p-6"
+                className="flex h-full flex-col rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.24)] sm:rounded-[28px] sm:p-6"
               >
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
                   {insight.eyebrow}
@@ -338,6 +338,25 @@ export default async function AnalisisPage({ searchParams }: AnalisisPageProps) 
             ))}
           </div>
 
+          <section className="mb-4 flex flex-col gap-2 sm:mb-5">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">
+              Snapshot del recorte
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div className="max-w-2xl">
+                <h2 className="text-2xl font-black tracking-tight text-slate-900">
+                  KPIs y hallazgos principales
+                </h2>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  Una primera lectura del mercado antes de entrar al detalle de cada gráfico.
+                </p>
+              </div>
+              <span className="inline-flex w-fit rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
+                {getRegionLabel(selectedRegion)} · {getCurrencyLabel(selectedCurrency)}
+              </span>
+            </div>
+          </section>
+
           <div className="mb-6 grid grid-cols-1 gap-3 sm:mb-8 sm:grid-cols-2 sm:gap-4 xl:grid-cols-4">
             {kpis.map((kpi) => {
               const Icon = kpi.icon;
@@ -345,8 +364,9 @@ export default async function AnalisisPage({ searchParams }: AnalisisPageProps) 
               return (
                 <div
                   key={kpi.label}
-                  className="rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_20px_55px_-42px_rgba(15,23,42,0.28)] sm:rounded-[28px] sm:p-5"
+                  className="relative overflow-hidden rounded-[24px] border border-slate-200 bg-white p-4 shadow-[0_20px_55px_-42px_rgba(15,23,42,0.28)] sm:rounded-[28px] sm:p-5"
                 >
+                  <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,_rgba(59,130,246,0.95)_0%,_rgba(29,78,216,0.55)_100%)]" />
                   <div className="mb-4 flex items-start justify-between gap-3">
                     <div>
                       <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
@@ -369,8 +389,9 @@ export default async function AnalisisPage({ searchParams }: AnalisisPageProps) 
               {insights.map((insight) => (
                 <article
                   key={insight.title}
-                  className="rounded-[24px] border border-blue-100 bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fbff_100%)] p-5 shadow-[0_20px_55px_-42px_rgba(29,78,216,0.2)] sm:rounded-[28px] sm:p-6"
+                  className="relative overflow-hidden rounded-[24px] border border-blue-100 bg-[linear-gradient(180deg,_#ffffff_0%,_#f8fbff_100%)] p-5 shadow-[0_20px_55px_-42px_rgba(29,78,216,0.2)] sm:rounded-[28px] sm:p-6"
                 >
+                  <div className="absolute inset-x-0 top-0 h-1 bg-[linear-gradient(90deg,_rgba(37,99,235,0.95)_0%,_rgba(14,165,233,0.45)_100%)]" />
                   <p className="text-xs font-black uppercase tracking-[0.18em] text-blue-600">
                     {insight.eyebrow}
                   </p>
@@ -382,6 +403,20 @@ export default async function AnalisisPage({ searchParams }: AnalisisPageProps) 
               ))}
             </section>
           ) : null}
+
+          <section className="mb-4 flex flex-col gap-2 sm:mb-5">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-slate-400">
+              Tablero interactivo
+            </p>
+            <div className="max-w-2xl">
+              <h2 className="text-2xl font-black tracking-tight text-slate-900">
+                Comparativas del mercado
+              </h2>
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                Zonas, tipologías, ambientes y amenities leídos con el mismo recorte activo.
+              </p>
+            </div>
+          </section>
 
           <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-2">
             <div className="min-w-0 rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.3)] sm:rounded-[32px] sm:p-8 lg:col-span-2">
