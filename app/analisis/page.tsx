@@ -648,7 +648,7 @@ export default async function AnalisisPage({ searchParams }: AnalisisPageProps) 
               </div>
 
               <Link
-                href="/informacion_pdf.pdf"
+                href="https://drive.google.com/file/d/1lm72UKTAn4HNgnnhi1Prl2sQ_PX3RECa/view?usp=sharing"
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-slate-50 px-4 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-white hover:text-slate-900"
