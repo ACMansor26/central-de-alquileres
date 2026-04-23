@@ -108,9 +108,11 @@ function CustomTooltip({
 
 export default function AmenitiesImpactChart({
   data,
+  coverageNote,
   currencyMode = "ARS",
 }: {
   data: ChartDatum[];
+  coverageNote?: string;
   currencyMode?: CurrencyMode;
 }) {
   const chartData = data;
@@ -120,13 +122,34 @@ export default function AmenitiesImpactChart({
     currencyMode === "ARS"
       ? "Valores tipicos comparados en ARS"
       : currencyMode === "Dolares"
-        ? "Valores tipicos en dolares"
-        : "Valores tipicos en pesos";
+      ? "Valores tipicos en dolares"
+      : "Valores tipicos en pesos";
+
+  const coverageBlock = coverageNote ? (
+    <div className="mt-2 rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+      <p className="text-[11px] font-black uppercase tracking-[0.16em] text-slate-400">
+        Cobertura del dato
+      </p>
+      <p className="mt-1 text-xs leading-6 text-slate-600">{coverageNote}</p>
+    </div>
+  ) : null;
 
   if (chartData.length === 0) {
     return (
-      <div className="flex h-[300px] w-full items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 text-center text-sm text-slate-500">
-        No hay datos suficientes para comparar amenities.
+      <div className="w-full min-w-0">
+        <div className="mb-4 flex flex-col gap-1">
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
+            Impacto de amenities
+          </p>
+          <p className="text-sm font-semibold text-slate-800">Valor tipico con y sin cada amenity</p>
+          <p className="text-xs text-slate-500">
+            Cada comparacion necesita al menos {MIN_SAMPLE} avisos por grupo. {valueLabel}.
+          </p>
+          {coverageBlock}
+        </div>
+        <div className="flex h-[300px] w-full items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 text-center text-sm text-slate-500">
+          No hay datos suficientes para comparar amenities.
+        </div>
       </div>
     );
   }
@@ -141,6 +164,7 @@ export default function AmenitiesImpactChart({
         <p className="text-xs text-slate-500">
           Cada comparacion necesita al menos {MIN_SAMPLE} avisos por grupo. {valueLabel}.
         </p>
+        {coverageBlock}
       </div>
 
       <ChartMountGuard height={chartHeight}>

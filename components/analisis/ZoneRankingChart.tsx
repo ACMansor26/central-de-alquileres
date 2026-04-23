@@ -5,47 +5,44 @@ import {
   Bar,
   BarChart,
   CartesianGrid,
-  Legend,
+  Cell,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
 } from "recharts";
-import { ArrowDownAZ, ArrowUpAZ, Info, Ruler } from "lucide-react";
 import type { TooltipProps } from "recharts";
 import type { Payload } from "recharts/types/component/DefaultTooltipContent";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
+import { ArrowDownAZ, ArrowUpAZ, BadgeInfo, Ruler } from "lucide-react";
 import ChartMountGuard from "@/components/analisis/ChartMountGuard";
 import { ANALYSIS_CHART_COLORS } from "@/components/analisis/chartTheme";
+import type { ZoneProfile } from "@/lib/data/analysis";
 
-type PropertyType = "Departamento" | "Casa" | "PH";
 type CurrencyMode = "ARS" | "Pesos" | "Dolares";
 
-type ChartDatum = {
+type RankingDatum = {
   name: string;
   shortName: string;
-  Departamento: number | null;
-  Casa: number | null;
-  PH: number | null;
-  departamentoCount: number;
-  casaCount: number;
-  phCount: number;
+  profile: ZoneProfile;
   totalProps: number;
   globalMedian: number | null;
   validTypeCount: number;
-  profile: "mono-tipo" | "bi-tipo" | "multi-tipo";
 };
 type MetricView = "total" | "sqm";
 
-const MIN_TYPE_SAMPLE = 5;
-const MIN_VALID_TYPES = 2;
-const MAX_ZONES = 16;
-const PROPERTY_TYPES: PropertyType[] = ["Departamento", "PH", "Casa"];
+const MAX_ZONES = 14;
 
-const BAR_COLORS: Record<PropertyType, string> = {
-  Departamento: ANALYSIS_CHART_COLORS.primary,
-  PH: ANALYSIS_CHART_COLORS.secondary,
-  Casa: ANALYSIS_CHART_COLORS.accent,
+const PROFILE_COLORS: Record<ZoneProfile, string> = {
+  "multi-tipo": ANALYSIS_CHART_COLORS.primary,
+  "bi-tipo": ANALYSIS_CHART_COLORS.teal,
+  "mono-tipo": ANALYSIS_CHART_COLORS.accent,
+};
+
+const PROFILE_SHORT_LABEL: Record<ZoneProfile, string> = {
+  "multi-tipo": "multi",
+  "bi-tipo": "bi",
+  "mono-tipo": "mono",
 };
 
 function formatCurrency(value: number, currencyMode: CurrencyMode) {
@@ -78,7 +75,7 @@ function formatMetricValue(value: number, currencyMode: CurrencyMode, metricView
   return formatCurrency(value, currencyMode);
 }
 
-function CustomTooltip({
+function RankingTooltip({
   active,
   payload,
   currencyMode,
@@ -90,108 +87,76 @@ function CustomTooltip({
 }) {
   if (!active || !payload?.length) return null;
 
-  const datum = payload[0]?.payload as ChartDatum | undefined;
-  if (!datum) return null;
-
-  const rows: Array<{ label: PropertyType; value: number | null; count: number }> = [
-    {
-      label: "Departamento",
-      value: datum.Departamento,
-      count: datum.departamentoCount,
-    },
-    {
-      label: "PH",
-      value: datum.PH,
-      count: datum.phCount,
-    },
-    {
-      label: "Casa",
-      value: datum.Casa,
-      count: datum.casaCount,
-    },
-  ];
+  const datum = payload[0]?.payload as RankingDatum | undefined;
+  if (!datum || datum.globalMedian === null) return null;
 
   return (
     <div className="min-w-[260px] rounded-3xl border border-slate-200 bg-white/98 p-4 shadow-[0_24px_60px_-36px_rgba(15,23,42,0.45)]">
-      <div className="mb-3 border-b border-slate-100 pb-3">
-        <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-          Zona
-        </p>
-        <p className="mt-1 text-sm font-bold text-slate-900">{datum.name}</p>
-        <p className="mt-1 text-xs font-medium text-slate-500">
-          {datum.totalProps} publicaciones tomadas para esta zona
-        </p>
-        <p className="mt-1 text-xs font-medium text-slate-500">
-          Perfil {datum.profile} | {datum.validTypeCount} tipos con muestra valida
-        </p>
+      <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">Zona</p>
+      <p className="mt-1 text-sm font-bold text-slate-900">{datum.name}</p>
+      <div className="mt-3 flex items-center justify-between gap-4 text-sm">
+        <span className="font-medium text-slate-600">Valor tipico</span>
+        <span className="font-semibold text-slate-900">
+          {formatMetricValue(datum.globalMedian, currencyMode, metricView)}
+        </span>
       </div>
-
-      <div className="space-y-2.5">
-        {rows.map((row) => (
-          <div key={row.label} className="flex items-center justify-between gap-4 text-sm">
-            <div className="flex min-w-0 items-center gap-2">
-              <span
-                className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
-                style={{ backgroundColor: BAR_COLORS[row.label] }}
-              />
-              <span className="font-medium text-slate-700">{row.label}</span>
-            </div>
-
-            <div className="text-right">
-              <div className="font-semibold text-slate-900">
-                {row.value ? formatMetricValue(row.value, currencyMode, metricView) : "Muestra baja"}
-              </div>
-              <div className="text-xs text-slate-500">{row.count} avisos</div>
-            </div>
-          </div>
-        ))}
+      <div className="mt-2 flex items-center justify-between gap-4 text-sm">
+        <span className="font-medium text-slate-600">Perfil</span>
+        <span
+          className="rounded-full px-2.5 py-1 text-xs font-bold capitalize text-white"
+          style={{ backgroundColor: PROFILE_COLORS[datum.profile] }}
+        >
+          {datum.profile}
+        </span>
       </div>
+      <div className="mt-2 flex items-center justify-between gap-4 text-sm">
+        <span className="font-medium text-slate-600">Avisos totales</span>
+        <span className="font-semibold text-slate-900">
+          {datum.totalProps.toLocaleString("es-AR")}
+        </span>
+      </div>
+      <p className="mt-3 text-xs text-slate-500">
+        Tipos con muestra valida: {datum.validTypeCount} de 3.
+      </p>
     </div>
   );
 }
 
-export default function PriceByZoneChart({
+export default function ZoneRankingChart({
   data,
   sqmData = [],
   sqmCoverage,
   currencyMode = "ARS",
 }: {
-  data: ChartDatum[];
-  sqmData?: ChartDatum[];
+  data: RankingDatum[];
+  sqmData?: RankingDatum[];
   sqmCoverage?: { count: number; percentage: number } | null;
   currencyMode?: CurrencyMode;
 }) {
   const [sortDirection, setSortDirection] = useState<"desc" | "asc">("desc");
   const [metricView, setMetricView] = useState<MetricView>("total");
 
-  const chartData = useMemo<ChartDatum[]>(() => {
+  const chartData = useMemo(() => {
     const source = metricView === "sqm" ? sqmData : data;
 
     return [...source]
+      .filter((zone): zone is RankingDatum & { globalMedian: number } => zone.globalMedian !== null)
       .sort((a, b) =>
-        sortDirection === "desc"
-          ? (b.globalMedian ?? 0) - (a.globalMedian ?? 0)
-          : (a.globalMedian ?? 0) - (b.globalMedian ?? 0)
+        sortDirection === "desc" ? b.globalMedian - a.globalMedian : a.globalMedian - b.globalMedian
       )
-      .slice(0, MAX_ZONES);
+      .slice(0, MAX_ZONES)
+      .map((zone) => ({
+        ...zone,
+        axisLabel: `${zone.shortName} · ${PROFILE_SHORT_LABEL[zone.profile]}`,
+      }));
   }, [data, metricView, sortDirection, sqmData]);
 
-  const chartHeight = Math.max(420, chartData.length * 54 + 80);
-  const valueLabel =
-    currencyMode === "ARS"
-      ? "Valores normalizados a ARS"
-      : currencyMode === "Dolares"
-        ? "Valores originales en dolares"
-        : "Valores originales en pesos";
-  const sortLabel =
-    sortDirection === "desc"
-      ? `Top ${MAX_ZONES} zonas mas caras`
-      : `Top ${MAX_ZONES} zonas mas baratas`;
+  const chartHeight = Math.max(400, chartData.length * 52 + 60);
 
   if (chartData.length === 0) {
     return (
-      <div className="flex h-full min-h-[450px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 text-center text-sm text-slate-500">
-        No hay datos suficientes para mostrar precios por zona.
+      <div className="flex h-full min-h-[420px] items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-6 text-center text-sm text-slate-500">
+        No hay zonas con presencia suficiente para armar el ranking.
       </div>
     );
   }
@@ -201,27 +166,19 @@ export default function PriceByZoneChart({
       <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
-            Zonas comparables
+            Filtro de presencia
           </p>
-          <p className="mt-1 text-sm font-semibold text-slate-800">Precio tipico por zona</p>
+          <p className="mt-1 text-sm font-semibold text-slate-800">
+            Ranking general por zona
+          </p>
           <div className="mt-1 flex flex-col gap-1 text-xs text-slate-500">
             <p>
-              Se muestran hasta {MAX_ZONES} zonas por vista. Cada barra representa la referencia
-              tipica del alquiler para ese tipo de propiedad.
+              Entran zonas con 10 o mas avisos totales, aunque esten concentradas en uno o dos
+              tipos de propiedad.
             </p>
             <p>
-              Solo se incluyen zonas con al menos {MIN_VALID_TYPES} tipos que superen {MIN_TYPE_SAMPLE} avisos cada uno.
+              La etiqueta junto a cada zona resume su perfil: mono-tipo, bi-tipo o multi-tipo.
             </p>
-            {metricView === "sqm" && sqmCoverage ? (
-              <p>
-                Vista por m² disponible en {sqmCoverage.count.toLocaleString("es-AR")} avisos del
-                recorte ({sqmCoverage.percentage.toLocaleString("es-AR", {
-                  minimumFractionDigits: 1,
-                  maximumFractionDigits: 1,
-                })}
-                %).
-              </p>
-            ) : null}
           </div>
         </div>
 
@@ -239,7 +196,6 @@ export default function PriceByZoneChart({
             >
               Precio total
             </button>
-
             <button
               type="button"
               onClick={() => setMetricView("sqm")}
@@ -256,8 +212,13 @@ export default function PriceByZoneChart({
           </div>
 
           <p className="flex items-center gap-1.5 text-xs font-medium text-slate-400">
-            <Info size={13} />
-            {metricView === "sqm" ? "Valores tipicos por m² en ARS" : valueLabel}
+            <BadgeInfo size={13} />
+            {metricView === "sqm" && sqmCoverage
+              ? `${sqmCoverage.count.toLocaleString("es-AR")} avisos con m² calculado (${sqmCoverage.percentage.toLocaleString("es-AR", {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })}%)`
+              : "Perfil segun tipos con 5+ avisos"}
           </p>
 
           <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1">
@@ -289,8 +250,6 @@ export default function PriceByZoneChart({
               Mas baratas
             </button>
           </div>
-
-          <p className="text-xs font-medium text-slate-400">{sortLabel}</p>
         </div>
       </div>
 
@@ -299,16 +258,15 @@ export default function PriceByZoneChart({
           <BarChart
             layout="vertical"
             data={chartData}
-            margin={{ top: 10, right: 20, left: 10, bottom: 10 }}
-            barCategoryGap="22%"
+            margin={{ top: 8, right: 18, left: 8, bottom: 8 }}
+            barCategoryGap="26%"
           >
             <CartesianGrid
               strokeDasharray="3 3"
-              horizontal={true}
+              horizontal
               vertical={false}
               stroke={ANALYSIS_CHART_COLORS.grid}
             />
-
             <XAxis
               type="number"
               axisLine={false}
@@ -316,42 +274,29 @@ export default function PriceByZoneChart({
               tick={{ fill: ANALYSIS_CHART_COLORS.softText, fontSize: 11 }}
               tickFormatter={(value: number) => formatMetricValue(value, currencyMode, metricView)}
             />
-
             <YAxis
               type="category"
-              dataKey="shortName"
-              width={112}
+              dataKey="axisLabel"
+              width={150}
               axisLine={false}
               tickLine={false}
-              tick={{ fill: ANALYSIS_CHART_COLORS.mutedText, fontSize: 12, fontWeight: 600 }}
+              tick={{ fill: ANALYSIS_CHART_COLORS.mutedText, fontSize: 11, fontWeight: 600 }}
             />
-
             <Tooltip
-              content={<CustomTooltip currencyMode={currencyMode} metricView={metricView} />}
+              content={<RankingTooltip currencyMode={currencyMode} metricView={metricView} />}
               cursor={{ fill: ANALYSIS_CHART_COLORS.hover }}
             />
-
-            <Legend
-              verticalAlign="top"
-              align="right"
-              iconType="circle"
-              wrapperStyle={{
-                paddingBottom: "16px",
-                fontSize: "12px",
-                color: ANALYSIS_CHART_COLORS.mutedText,
-              }}
-            />
-
-            {PROPERTY_TYPES.map((propertyType) => (
-              <Bar
-                key={propertyType}
-                dataKey={propertyType}
-                name={propertyType}
-                fill={BAR_COLORS[propertyType]}
-                radius={[0, 999, 999, 0]}
-                maxBarSize={14}
-              />
-            ))}
+            <Bar
+              dataKey="globalMedian"
+              name="Valor tipico"
+              fill={ANALYSIS_CHART_COLORS.primary}
+              radius={[0, 999, 999, 0]}
+              maxBarSize={16}
+            >
+              {chartData.map((entry) => (
+                <Cell key={entry.name} fill={PROFILE_COLORS[entry.profile]} />
+              ))}
+            </Bar>
           </BarChart>
         </ResponsiveContainer>
       </ChartMountGuard>

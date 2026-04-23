@@ -10,10 +10,13 @@ import {
 } from "lucide-react";
 import AnalysisFilters from "@/components/analisis/AnalysisFilters";
 import AmenitiesImpactChart from "@/components/analisis/AmenitiesImpactChart";
+import AgeImpactChart from "@/components/analisis/AgeImpactChart";
 import OfferDistributionChart from "@/components/analisis/OfferDistributionChart";
 import PriceByRoomsChart from "@/components/analisis/PriceByRoomsChart";
 import PriceByTypeChart from "@/components/analisis/PriceByTypeChart";
+import PriceVsCostChart from "@/components/analisis/PriceVsCostChart";
 import PriceByZoneChart from "@/components/analisis/PriceByZoneChart";
+import ZoneRankingChart from "@/components/analisis/ZoneRankingChart";
 import {
   getAnalysisDashboard,
   type CurrencyKey,
@@ -170,26 +173,63 @@ export default async function AnalisisPage({ searchParams }: AnalisisPageProps) 
   const chartMode: PriceMode = selectedCurrency === "all" ? "ARS" : selectedCurrency;
 
   const {
-    overallMedian,
     usefulListings,
+    currencyReferences,
+    zoneRankingData,
     zoneChartData,
+    sqmZoneRankingData,
+    sqmZoneChartData,
     roomsChartData,
     typeChartData,
+    sqmTypeChartData,
     amenitiesChartData,
     offerDistributionData,
+    priceVsCostData,
+    expenseCoverage,
+    ageChartData,
+    ageCoverage,
+    sqmCoverage,
+    petsCoverage,
+    orientationCoverage,
     mostExpensiveZone,
     mostOfferedType,
+    dominantTypeShare,
     insights,
   } = await getAnalysisDashboard(selectedRegion, selectedCurrency, chartMode);
 
+  const currencyReferenceNote =
+    selectedCurrency === "all"
+      ? "Se muestran referencias separadas para evitar mezclar avisos en pesos con avisos en dólares convertidos."
+      : "La referencia se calcula solo sobre la moneda activa, sin mezclar precios convertidos.";
+
   const kpis = [
     {
-      label: "Valor tipico general",
-      value: overallMedian ? formatCompactCurrency(overallMedian, chartMode) : "Sin dato",
-      helper:
-        selectedCurrency === "all"
-          ? "Referencia central del recorte activo, con valores llevados a ARS."
-          : `Referencia central del recorte activo en ${selectedCurrency.toLowerCase()}.`,
+      label: "Referencias por moneda",
+      value:
+        currencyReferences.length > 0 ? (
+          <div className="space-y-2">
+            {currencyReferences.map((item) => (
+              <div key={item.currency} className="rounded-2xl border border-slate-200 bg-slate-50 px-3 py-2">
+                <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+                  {item.currency}
+                </p>
+                <p className="mt-1 text-lg font-black text-slate-900">
+                  {formatCompactCurrency(item.median ?? 0, item.currency)}
+                </p>
+                <p className="text-xs text-slate-500">
+                  {item.share.toLocaleString("es-AR", {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
+                  })}
+                  % del recorte
+                </p>
+              </div>
+            ))}
+          </div>
+        ) : (
+          "Sin dato"
+        ),
+      helper: currencyReferenceNote,
       icon: TrendingUp,
     },
     {
@@ -199,25 +239,30 @@ export default async function AnalisisPage({ searchParams }: AnalisisPageProps) 
       icon: BarChart3,
     },
     {
-      label: "Zona comparable mas cara",
+      label: "Zona mas cara",
       value: mostExpensiveZone?.zone ?? "Sin dato",
       helper: mostExpensiveZone
-        ? `Referencia tipica: ${formatCompactCurrency(mostExpensiveZone.value, chartMode)}.`
-        : "Solo se consideran zonas con muestra valida en los tres tipos principales.",
+        ? `Referencia tipica: ${formatCompactCurrency(mostExpensiveZone.value, chartMode)}. Perfil ${mostExpensiveZone.profile}.`
+        : "Solo se consideran zonas con presencia suficiente para el ranking general.",
       icon: Building2,
     },
     {
-      label: "Tipo con mayor oferta",
+      label: "Tipo dominante",
       value: mostOfferedType?.[0] ?? "Sin dato",
-      helper: mostOfferedType
-        ? `${mostOfferedType[1].toLocaleString("es-AR")} publicaciones activas en el recorte actual.`
-        : "Todavia no hay muestra suficiente.",
+      helper:
+        mostOfferedType && dominantTypeShare !== null
+          ? `${dominantTypeShare.toLocaleString("es-AR", {
+              minimumFractionDigits: 1,
+              maximumFractionDigits: 1,
+            })}% de los avisos incluidos por el filtro de presencia.`
+          : "Todavia no hay muestra suficiente.",
       icon: Home,
     },
   ];
 
   if (
-    !overallMedian &&
+    currencyReferences.length === 0 &&
+    zoneRankingData.length === 0 &&
     zoneChartData.length === 0 &&
     roomsChartData.length === 0 &&
     typeChartData.length === 0 &&
@@ -372,7 +417,7 @@ export default async function AnalisisPage({ searchParams }: AnalisisPageProps) 
                       <p className="text-xs font-black uppercase tracking-[0.18em] text-slate-400">
                         {kpi.label}
                       </p>
-                      <p className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">{kpi.value}</p>
+                      <div className="mt-2 text-xl font-black text-slate-900 sm:text-2xl">{kpi.value}</div>
                     </div>
                     <span className="rounded-2xl border border-blue-100 bg-blue-50 p-2 text-[#1d4ed8]">
                       <Icon size={18} />
@@ -418,6 +463,32 @@ export default async function AnalisisPage({ searchParams }: AnalisisPageProps) 
             </div>
           </section>
 
+          <div className="mb-6 rounded-[24px] border border-slate-200 bg-white px-4 py-4 shadow-[0_18px_45px_-38px_rgba(15,23,42,0.18)] sm:mb-8 sm:px-5">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-slate-400">
+              Nota de cobertura
+            </p>
+            {orientationCoverage ? (
+              <p className="mt-2 text-sm leading-7 text-slate-600">
+                La orientación está declarada en{" "}
+                <span className="font-semibold text-slate-900">
+                  {orientationCoverage.percentage.toLocaleString("es-AR", {
+                    minimumFractionDigits: 1,
+                    maximumFractionDigits: 1,
+                  })}
+                  %
+                </span>{" "}
+                del recorte activo. Los avisos sin ese dato tienden a mostrar precios más altos,
+                así que cualquier futura comparación por orientación conviene leerla con ese sesgo
+                en mente.
+              </p>
+            ) : (
+              <p className="mt-2 text-sm leading-7 text-slate-600">
+                La cobertura de orientación todavía no se muestra en este tablero porque la vista
+                analítica activa no expone ese campo.
+              </p>
+            )}
+          </div>
+
           <div className="grid grid-cols-1 gap-6 sm:gap-8 lg:grid-cols-2">
             <div className="min-w-0 rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.3)] sm:rounded-[32px] sm:p-8 lg:col-span-2">
               <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -426,20 +497,54 @@ export default async function AnalisisPage({ searchParams }: AnalisisPageProps) 
                     <BarChart3 size={24} />
                   </span>
                   <div>
-                    <h2 className="text-xl font-bold text-slate-800">Precio tipico por zona</h2>
+                    <h2 className="text-xl font-bold text-slate-800">Ranking general por zona</h2>
                     <p className="text-sm text-slate-500">
                       {selectedCurrency === "all"
-                        ? "Comparacion con valores llevados a ARS para leer todo en una misma escala."
-                        : `Comparacion con valores publicados en ${selectedCurrency.toLowerCase()}.`}
+                        ? "El ranking usa valores llevados a ARS y suma zonas con 10 o mas avisos totales."
+                        : `El ranking usa valores publicados en ${selectedCurrency.toLowerCase()} y suma zonas con 10 o mas avisos totales.`}
                     </p>
                   </div>
                 </div>
                 <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-widest text-[#1d4ed8]">
-                  {getRegionLabel(selectedRegion)} | {getCurrencyLabel(selectedCurrency)}
+                  Filtro de presencia
                 </span>
               </div>
 
-              <PriceByZoneChart data={zoneChartData} currencyMode={chartMode} />
+              <ZoneRankingChart
+                data={zoneRankingData}
+                sqmData={sqmZoneRankingData}
+                sqmCoverage={sqmCoverage}
+                currencyMode={chartMode}
+              />
+            </div>
+
+            <div className="min-w-0 rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_24px_70px_-46px_rgba(15,23,42,0.3)] sm:rounded-[32px] sm:p-8 lg:col-span-2">
+              <div className="mb-8 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="rounded-2xl border border-blue-100 bg-blue-50 p-2.5 text-[#1d4ed8]">
+                    <Building2 size={24} />
+                  </span>
+                  <div>
+                    <h2 className="text-xl font-bold text-slate-800">
+                      Comparacion por tipo dentro de cada zona
+                    </h2>
+                    <p className="text-sm text-slate-500">
+                      Solo entran zonas con al menos dos tipos que superen 5 avisos cada uno, para
+                      que la comparacion sea mas pareja.
+                    </p>
+                  </div>
+                </div>
+                <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-black uppercase tracking-widest text-[#1d4ed8]">
+                  Filtro de comparacion
+                </span>
+              </div>
+
+              <PriceByZoneChart
+                data={zoneChartData}
+                sqmData={sqmZoneChartData}
+                sqmCoverage={sqmCoverage}
+                currencyMode={chartMode}
+              />
             </div>
 
             <div className="min-w-0 rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_20px_55px_-42px_rgba(15,23,42,0.24)] sm:rounded-[28px] sm:p-6">
@@ -459,7 +564,12 @@ export default async function AnalisisPage({ searchParams }: AnalisisPageProps) 
                 </span>
                 <h2 className="text-lg font-bold text-slate-800">Precio tipico por tipo</h2>
               </div>
-              <PriceByTypeChart data={typeChartData} currencyMode={chartMode} />
+              <PriceByTypeChart
+                data={typeChartData}
+                sqmData={sqmTypeChartData}
+                sqmCoverage={sqmCoverage}
+                currencyMode={chartMode}
+              />
             </div>
 
             <div className="min-w-0 rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_20px_55px_-42px_rgba(15,23,42,0.24)] sm:rounded-[28px] sm:p-6">
@@ -469,7 +579,14 @@ export default async function AnalisisPage({ searchParams }: AnalisisPageProps) 
                 </span>
                 <h2 className="text-lg font-bold text-slate-800">Como influyen los amenities</h2>
               </div>
-              <AmenitiesImpactChart data={amenitiesChartData} currencyMode={chartMode} />
+              <AmenitiesImpactChart
+                data={amenitiesChartData}
+                currencyMode={chartMode}
+                coverageNote={`Politica de mascotas definida en ${petsCoverage.percentage.toLocaleString("es-AR", {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })}% del recorte activo (${petsCoverage.count.toLocaleString("es-AR")} avisos).`}
+              />
             </div>
 
             <div className="min-w-0 rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_20px_55px_-42px_rgba(15,23,42,0.24)] sm:rounded-[28px] sm:p-6">
@@ -480,6 +597,38 @@ export default async function AnalisisPage({ searchParams }: AnalisisPageProps) 
                 <h2 className="text-lg font-bold text-slate-800">Como se reparte la oferta</h2>
               </div>
               <OfferDistributionChart data={offerDistributionData} />
+            </div>
+
+            <div className="min-w-0 rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_20px_55px_-42px_rgba(15,23,42,0.24)] sm:rounded-[28px] sm:p-6 lg:col-span-2">
+              <div className="mb-6 flex items-center gap-3">
+                <span className="rounded-2xl border border-slate-200 bg-slate-50 p-2 text-slate-600">
+                  <TrendingUp size={20} />
+                </span>
+                <h2 className="text-lg font-bold text-slate-800">Precio publicado vs costo real</h2>
+              </div>
+              <PriceVsCostChart
+                data={priceVsCostData}
+                coverageNote={`Expensas declaradas en ${expenseCoverage.percentage.toLocaleString("es-AR", {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })}% del recorte activo (${expenseCoverage.count.toLocaleString("es-AR")} avisos con expensas > 0).`}
+              />
+            </div>
+
+            <div className="min-w-0 rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_20px_55px_-42px_rgba(15,23,42,0.24)] sm:rounded-[28px] sm:p-6 lg:col-span-2">
+              <div className="mb-6 flex items-center gap-3">
+                <span className="rounded-2xl border border-slate-200 bg-slate-50 p-2 text-slate-600">
+                  <Building2 size={20} />
+                </span>
+                <h2 className="text-lg font-bold text-slate-800">Antigüedad y precio</h2>
+              </div>
+              <AgeImpactChart
+                data={ageChartData}
+                coverageNote={`Sin dato representa el ${ageCoverage.missingPercentage.toLocaleString("es-AR", {
+                  minimumFractionDigits: 1,
+                  maximumFractionDigits: 1,
+                })}% del recorte activo (${ageCoverage.missingCount.toLocaleString("es-AR")} avisos).`}
+              />
             </div>
           </div>
 
