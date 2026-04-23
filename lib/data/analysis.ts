@@ -558,8 +558,15 @@ export async function getAnalysisDashboard(
     };
   }).filter((item) => item.conAmenity !== null || item.sinAmenity !== null);
 
-  const currencyReferences = (currencyRows ?? [])
-    .filter((row) => moneda === "all" || row.moneda_origen === moneda)
+  const filteredCurrencyRows = (currencyRows ?? []).filter(
+    (row) => moneda === "all" || row.moneda_origen === moneda
+  );
+  const currencyRowsTotal = filteredCurrencyRows.reduce(
+    (sum, row) => sum + (toNumber(row.cantidad) ?? 0),
+    0
+  );
+
+  const currencyReferences = filteredCurrencyRows
     .map((row) => {
       const count = toNumber(row.cantidad) ?? 0;
       const median = toNumber(row.valor_tipico_moneda_original);
@@ -570,7 +577,10 @@ export async function getAnalysisDashboard(
         currency: row.moneda_origen,
         median,
         count,
-        share: getPercentage(count, usefulListings),
+        share:
+          moneda === "all"
+            ? getPercentage(count, currencyRowsTotal)
+            : 100,
       };
     })
     .filter(
